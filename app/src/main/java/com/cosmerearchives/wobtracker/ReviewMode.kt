@@ -54,7 +54,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit)
             }) { Text("Save source link") }
             if (current.originalUrl.isBlank() && sourceLink.isBlank()) Text("Arcanum's API does not supply the external source URL.", style = MaterialTheme.typography.bodySmall)
             HorizontalDivider()
-            OutlinedTextField(value = tags, onValueChange = { tags = it; dirty = true; message = "" }, label = { Text("My tags (comma separated)") }, modifier = Modifier.fillMaxWidth())
+            PersonalTagField(value = tags, onValueChange = { tags = it; dirty = true; message = "" }, library = library, revision = libraryRevision + localRefresh, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = notes, onValueChange = { notes = it; dirty = true; message = "" }, label = { Text("My notes") }, minLines = 3, modifier = Modifier.fillMaxWidth())
             Text("Work classification", color = ReviewPlum, fontWeight = FontWeight.SemiBold)
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
