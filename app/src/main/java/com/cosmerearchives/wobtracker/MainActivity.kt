@@ -24,9 +24,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val updates = UpdateManager(this)
+        val probe = ArcanumProbe()
         updates.check()
         setContent {
             val state by updates.state.collectAsState()
+            var archiveResult by remember { mutableStateOf(ArchiveProbeResult("Not tested yet")) }
             MaterialTheme(colorScheme = lightColorScheme(primary = Plum, background = Background, surface = Color.White, onBackground = Ink)) {
                 Column(
                     modifier = Modifier.fillMaxSize().background(Background).padding(20.dp),
@@ -51,6 +53,17 @@ class MainActivity : ComponentActivity() {
                             Text("Your collection starts here", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
                             Spacer(Modifier.height(10.dp))
                             Text("Update test: if you can read this message, the new APK installed successfully!", color = Ink)
+                        }
+                    }
+                    Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Arcanum connection test", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                            Text(archiveResult.status, color = Ink)
+                            archiveResult.total?.let { Text("Archive reports $it entries", color = Plum) }
+                            archiveResult.examples.forEach { Text(it, color = Ink, fontSize = 13.sp) }
+                            Button(onClick = { probe.run { archiveResult = it } }, colors = ButtonDefaults.buttonColors(containerColor = Plum)) {
+                                Text("Test Arcanum API")
+                            }
                         }
                     }
                     Spacer(Modifier.weight(1f))
