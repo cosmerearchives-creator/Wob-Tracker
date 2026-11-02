@@ -39,9 +39,9 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         writableDatabase.insertWithOnConflict("entries", null, values, SQLiteDatabase.CONFLICT_IGNORE)
     }
 
-    fun savePersonal(id: Int, tags: String, notes: String) {
+    fun savePersonal(id: Int, tags: String, notes: String): Boolean {
         val values = ContentValues().apply { put("my_tags", tags); put("my_notes", notes) }
-        writableDatabase.update("entries", values, "id=?", arrayOf(id.toString()))
+        return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
 
     /** Small bounded sample, fetched only when explicitly requested. */
