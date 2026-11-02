@@ -107,6 +107,20 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         return writableDatabase.update("entries", ContentValues().apply { put("original_url", normalized) }, "id=?", arrayOf(id.toString())) == 1
     }
 
+    /** Personal tags from all saved entries, including archived entries. */
+    fun knownPersonalTags(): List<String> {
+        val unique = linkedMapOf<String, String>()
+        readableDatabase.rawQuery("SELECT my_tags FROM entries WHERE my_tags != ''", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                cursor.getString(0).split(',').forEach { raw ->
+                    val tag = raw.trim()
+                    if (tag.isNotEmpty()) unique.putIfAbsent(tag.lowercase(java.util.Locale.ROOT), tag)
+                }
+            }
+        }
+        return unique.values.sortedWith(String.CASE_INSENSITIVE_ORDER)
+    }
+
     fun savePersonal(id: Int, tags: String, notes: String): Boolean {
         val values = ContentValues().apply { put("my_tags", tags); put("my_notes", notes) }
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
