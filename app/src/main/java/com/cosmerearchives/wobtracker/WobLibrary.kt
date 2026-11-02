@@ -8,11 +8,11 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = true, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false, val eventId: Int = 0, val entryDate: String = "", val modifiedDate: String = "", val originalUrl: String = "")
+data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = true, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false, val eventId: Int = 0, val entryDate: String = "", val modifiedDate: String = "", val originalUrl: String = "", val archived: Boolean = false)
 
-class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 5) {
+class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 6) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 1, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0, event_id INTEGER NOT NULL DEFAULT 0, entry_date TEXT NOT NULL DEFAULT '', modified_date TEXT NOT NULL DEFAULT '', original_url TEXT NOT NULL DEFAULT '')")
+        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 1, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0, event_id INTEGER NOT NULL DEFAULT 0, entry_date TEXT NOT NULL DEFAULT '', modified_date TEXT NOT NULL DEFAULT '', original_url TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0)")
         db.execSQL("CREATE TABLE highlights (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, quote TEXT NOT NULL, UNIQUE(entry_id,start_offset,end_offset))")
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -33,10 +33,11 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
             db.execSQL("ALTER TABLE entries ADD COLUMN modified_date TEXT NOT NULL DEFAULT ''")
             db.execSQL("ALTER TABLE entries ADD COLUMN original_url TEXT NOT NULL DEFAULT ''")
         }
+        if (oldVersion < 6) db.execSQL("ALTER TABLE entries ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
         db.execSQL("CREATE TABLE IF NOT EXISTS highlights (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, quote TEXT NOT NULL, UNIQUE(entry_id,start_offset,end_offset))")
     }
 
-    fun entries(query: String = "", filterBy: String = "All", category: String = "All works"): List<SavedWob> {
+    fun entries(query: String = "", filterBy: String = "All", category: String = "All works", archiveView: String = "Active"): List<SavedWob> {
         val result = mutableListOf<SavedWob>()
         val filter = "%${query.trim()}%"
         val extra = when (filterBy) {
@@ -50,12 +51,17 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
             "Extended Works" -> " AND extended_works=1"
             else -> ""
         }
+        val archiveClause = when (archiveView) {
+            "Archived" -> " AND archived=1"
+            "All" -> ""
+            else -> " AND archived=0"
+        }
         readableDatabase.rawQuery(
-            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$extra$categoryClause ORDER BY id DESC",
+            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url,archived FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$extra$categoryClause$archiveClause ORDER BY id DESC",
             arrayOf(filter, filter, filter, filter)
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                result.add(SavedWob(cursor.getInt(0),cursor.getString(1),cursor.getString(2),cursor.getString(3),cursor.getString(4),cursor.getString(5),cursor.getString(6),cursor.getInt(7) != 0,cursor.getInt(8) != 0,cursor.getInt(9) != 0,cursor.getInt(10) != 0,cursor.getInt(11),cursor.getString(12),cursor.getString(13),cursor.getString(14)))
+                result.add(SavedWob(cursor.getInt(0),cursor.getString(1),cursor.getString(2),cursor.getString(3),cursor.getString(4),cursor.getString(5),cursor.getString(6),cursor.getInt(7) != 0,cursor.getInt(8) != 0,cursor.getInt(9) != 0,cursor.getInt(10) != 0,cursor.getInt(11),cursor.getString(12),cursor.getString(13),cursor.getString(14),cursor.getInt(15) != 0))
             }
         }
         return result
@@ -145,6 +151,9 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         }
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
+
+    fun setArchived(id: Int, archived: Boolean): Boolean =
+        writableDatabase.update("entries", ContentValues().apply { put("archived", if (archived) 1 else 0) }, "id=?", arrayOf(id.toString())) == 1
 
     fun savedEntryCount(): Int =
         readableDatabase.rawQuery("SELECT COUNT(*) FROM entries", null).use { cursor ->
