@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
                         Column(Modifier.fillMaxWidth().padding(22.dp)) {
                             Text("Your collection starts here", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
                             Spacer(Modifier.height(10.dp))
-                            Text("The foundation is ready. We'll design tracking features together next.", color = Ink)
+                            Text("Update test: if you can read this message, the new APK installed successfully!", color = Ink)
                         }
                     }
                     Spacer(Modifier.weight(1f))
