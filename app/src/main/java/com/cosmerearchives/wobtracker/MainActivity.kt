@@ -61,7 +61,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    PrimaryTabRow(selectedTabIndex = when (selectedTab) { "Library" -> 0; "Review" -> 1; else -> 2 }) {
+                    TabRow(selectedTabIndex = when (selectedTab) { "Library" -> 0; "Review" -> 1; else -> 2 }) {
                         listOf("Library", "Review", "Tools").forEach { tab ->
                             Tab(selected = selectedTab == tab, onClick = { selectedTab = tab }, text = { Text(tab) })
                         }
