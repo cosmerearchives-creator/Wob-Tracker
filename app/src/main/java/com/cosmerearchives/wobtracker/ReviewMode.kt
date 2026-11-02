@@ -91,7 +91,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit)
                         onChanged()
                     } else message = "Could not save draft."
                 } catch (e: Exception) { message = "Could not save draft." }
-            }) { Text("Save & next (keep pending)") }
+            }) { Text("Save without reviewing & next") }
             OutlinedButton(onClick = {
                 passedIds = passedIds + current.id
                 localRefresh++
