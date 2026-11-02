@@ -17,9 +17,12 @@ object LibraryTransfer {
     private val personal = setOf("my_tags","my_notes","needs_review","needs_export","cosmere","extended_works","original_url","archived")
     private val numbers = setOf("id","needs_review","needs_export","cosmere","extended_works","event_id","archived")
     private fun digest(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-    private fun records(db: SQLiteDatabase, ids: Set<Int>? = null): JSONArray {
+    private fun records(db: SQLiteDatabase, ids: Set<Int>? = null, progress: (Int, Int) -> Unit = { _, _ -> }): JSONArray {
         val result = JSONArray()
         db.rawQuery("SELECT ${columns.joinToString(",")} FROM entries ORDER BY id", null).use { c ->
+            val total = ids?.size ?: c.count
+            var completed = 0
+            progress(0, total)
             while (c.moveToNext()) {
                 if (ids != null && c.getInt(0) !in ids) continue
                 val obj = JSONObject()
@@ -33,12 +36,14 @@ object LibraryTransfer {
                 }
                 obj.put("highlights", marks)
                 result.put(obj)
+                completed++
+                if (completed % 10 == 0 || completed == total) progress(completed, total)
             }
         }
         return result
     }
-    fun backup(library: WobLibrary, output: OutputStream): Int {
-        val entries = records(library.readableDatabase)
+    fun backup(library: WobLibrary, output: OutputStream, progress: (Int, Int) -> Unit = { _, _ -> }): Int {
+        val entries = records(library.readableDatabase, progress = progress)
         val bytes = JSONObject().put("format","wob-tracker-backup").put("version",1).put("entries",entries).toString().toByteArray(Charsets.UTF_8)
         val meta = JSONObject().put("format","wob-tracker-backup").put("version",1).put("sha256",digest(bytes)).put("count",entries.length())
         ZipOutputStream(output).use { zip ->
@@ -87,11 +92,12 @@ object LibraryTransfer {
     }
     fun verify(input: InputStream): Int = validated(input).length()
     /** Merge adds absent records and their highlights, leaving ALL existing records untouched. */
-    fun restoreMerge(library: WobLibrary, input: InputStream): Pair<Int,Int> {
+    fun restoreMerge(library: WobLibrary, input: InputStream, progress: (Int, Int) -> Unit = { _, _ -> }): Pair<Int,Int> {
         val arr = validated(input)
         val db = library.writableDatabase
         var added = 0
         var skipped = 0
+        progress(0, arr.length())
         db.beginTransaction()
         try {
             for (i in 0 until arr.length()) {
@@ -115,6 +121,7 @@ object LibraryTransfer {
                         put("entry_id",id); put("start_offset",mark.getInt("start")); put("end_offset",mark.getInt("end")); put("quote",mark.getString("quote"))
                     }, SQLiteDatabase.CONFLICT_IGNORE)
                 }
+                if ((i + 1) % 10 == 0 || i + 1 == arr.length()) progress(i + 1, arr.length())
             }
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
