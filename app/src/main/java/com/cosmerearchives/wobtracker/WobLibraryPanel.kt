@@ -85,7 +85,13 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                     )
                     if (selectedId == item.id) {
                         HorizontalDivider()
-                        Text(Html.fromHtml(item.transcript, Html.FROM_HTML_MODE_COMPACT).toString(), color = LibraryInk)
+                        if (item.eventId > 0) Text("Event ID: ${item.eventId}", color = LibraryPlum)
+                        if (item.date.isNotBlank()) Text("Event date: ${item.date}", color = LibraryPlum)
+                        if (item.entryDate.isNotBlank()) Text("Entry date: ${item.entryDate}", color = LibraryPlum)
+                        WobHighlightEditor(library, item)
+                        if (item.originalUrl.isNotBlank()) {
+                            Text("Original source: ${item.originalUrl}", color = LibraryPlum)
+                        }
                         if (item.sourceTags.isNotBlank()) Text("Source tags: ${item.sourceTags}", color = LibraryPlum)
                         OutlinedTextField(value = tags, onValueChange = { tags = it; saveMessage = null }, label = { Text("My tags (comma separated)") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = notes, onValueChange = { notes = it; saveMessage = null }, label = { Text("My notes") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
