@@ -80,6 +80,11 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
 
+    fun savedEntryCount(): Int =
+        readableDatabase.rawQuery("SELECT COUNT(*) FROM entries", null).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+
     fun hasEntry(id: Int): Boolean =
         readableDatabase.rawQuery("SELECT 1 FROM entries WHERE id=? LIMIT 1", arrayOf(id.toString())).use { it.moveToFirst() }
 
