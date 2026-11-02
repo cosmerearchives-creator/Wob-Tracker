@@ -49,7 +49,10 @@ private fun fetchArchivePage(page: Int): BrowserPage {
                 date = obj.optString("event_date"),
                 transcript = transcript,
                 sourceTags = if (tags == null) "" else (0 until tags.length()).joinToString(", ") { tags.getString(it) },
-                myTags = "", myNotes = ""
+                myTags = "", myNotes = "",
+                eventId = obj.optInt("event"),
+                entryDate = obj.optString("date").takeUnless { it == "null" }.orEmpty(),
+                modifiedDate = obj.optString("modified_date")
             )
         }
         return BrowserPage(json.optInt("count"), page, entries)
