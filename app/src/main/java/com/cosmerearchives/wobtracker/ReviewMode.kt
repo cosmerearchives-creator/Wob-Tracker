@@ -26,6 +26,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit)
     var extended by remember(current?.id, localRefresh) { mutableStateOf(current?.extendedWorks ?: false) }
     var export by remember(current?.id, localRefresh) { mutableStateOf(current?.needsExport ?: false) }
     var message by remember { mutableStateOf("") }
+    var sourceLink by remember(current?.id) { mutableStateOf(current?.originalUrl.orEmpty()) }
     var dirty by remember(current?.id, localRefresh) { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -36,8 +37,17 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit)
         } else {
             Text("WoB #${current.id} · ${current.event}", color = ReviewPlum, fontWeight = FontWeight.SemiBold)
             if (current.date.isNotBlank()) Text(current.date, color = ReviewInk)
-            Text(Html.fromHtml(current.transcript, Html.FROM_HTML_MODE_COMPACT).toString(), color = ReviewInk)
+            if (current.eventId > 0) Text("Event ID: ${current.eventId}", color = ReviewPlum)
+            if (current.date.isNotBlank()) Text("Event date: ${current.date}", color = ReviewPlum)
+            if (current.entryDate.isNotBlank()) Text("Entry date: ${current.entryDate}", color = ReviewPlum)
+            if (current.modifiedDate.isNotBlank()) Text("Source modified: ${current.modifiedDate}", color = ReviewPlum)
+            WobHighlightEditor(library, current)
             if (current.sourceTags.isNotBlank()) Text("Source tags: ${current.sourceTags}", color = ReviewPlum)
+            OutlinedTextField(value = sourceLink, onValueChange = { sourceLink = it }, label = { Text("Original external source URL (optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedButton(onClick = {
+                message = if (library.saveOriginalUrl(current.id, sourceLink)) "✓ Original source link saved." else "Enter a valid http(s) source URL."
+            }) { Text("Save source link") }
+            if (current.originalUrl.isBlank() && sourceLink.isBlank()) Text("Arcanum's API does not supply the external source URL.", style = MaterialTheme.typography.bodySmall)
             HorizontalDivider()
             OutlinedTextField(value = tags, onValueChange = { tags = it; dirty = true; message = "" }, label = { Text("My tags (comma separated)") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = notes, onValueChange = { notes = it; dirty = true; message = "" }, label = { Text("My notes") }, minLines = 3, modifier = Modifier.fillMaxWidth())
