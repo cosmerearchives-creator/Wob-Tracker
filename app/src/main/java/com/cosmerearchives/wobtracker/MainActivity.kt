@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
             var archiveResult by remember { mutableStateOf(ArchiveProbeResult("Not tested yet")) }
             var wobPreview by remember { mutableStateOf(WobPreviewState()) }
             var showWob by remember { mutableStateOf(false) }
+            var libraryRevision by remember { mutableIntStateOf(0) }
             MaterialTheme(colorScheme = lightColorScheme(primary = Plum, background = Background, surface = Color.White, onBackground = Ink)) {
                 Column(
                     modifier = Modifier.fillMaxSize().background(Background).verticalScroll(rememberScrollState()).padding(20.dp),
@@ -109,9 +110,14 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                            ArchiveBrowser(library) { libraryRevision++ }
+                        }
+                    }
                     Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
                         Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                            WobLibraryPanel(library)
+                            WobLibraryPanel(library, libraryRevision)
                         }
                     }
                     Text("Version " + BuildConfig.VERSION_NAME, color = Plum, fontSize = 12.sp)
