@@ -21,13 +21,14 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
     var query by remember { mutableStateOf("") }
     var filterBy by remember { mutableStateOf("All") }
     var categoryFilter by remember { mutableStateOf("All works") }
+    var archiveView by remember { mutableStateOf("Active") }
     var refresh by remember { mutableIntStateOf(0) }
     var importing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Import three sample WoBs to begin your offline library.") }
     var selectedId by remember { mutableStateOf<Int?>(null) }
     var saveMessage by remember { mutableStateOf<String?>(null) }
     var saveSucceeded by remember { mutableStateOf(false) }
-    val items = remember(query,filterBy,categoryFilter,refresh,libraryRevision) { library.entries(query, filterBy, categoryFilter) }
+    val items = remember(query,filterBy,categoryFilter,archiveView,refresh,libraryRevision) { library.entries(query, filterBy, categoryFilter, archiveView) }
     val current = items.firstOrNull { it.id == selectedId }
     var tags by remember(current?.id, refresh) { mutableStateOf(current?.myTags ?: "") }
     var notes by remember(current?.id, refresh) { mutableStateOf(current?.myNotes ?: "") }
@@ -68,6 +69,11 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                 FilterChip(selected = categoryFilter == category, onClick = { categoryFilter = category }, label = { Text(category) })
             }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            listOf("Active", "Archived", "All").forEach { view ->
+                FilterChip(selected = archiveView == view, onClick = { archiveView = view; selectedId = null }, label = { Text(view) })
+            }
+        }
         Text("${items.size} saved WoBs shown", color = LibraryInk, style = MaterialTheme.typography.labelMedium)
         items.forEach { item ->
             ElevatedCard(onClick = { selectedId = if (selectedId == item.id) null else item.id; saveMessage = null }, modifier = Modifier.fillMaxWidth()) {
@@ -85,6 +91,12 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                     )
                     if (selectedId == item.id) {
                         HorizontalDivider()
+                        OutlinedButton(onClick = {
+                            if (library.setArchived(item.id, !item.archived)) {
+                                selectedId = null
+                                refresh++
+                            }
+                        }) { Text(if (item.archived) "Return to active library" else "Archive entry (manual confirmation)") }
                         if (item.eventId > 0) Text("Event ID: ${item.eventId}", color = LibraryPlum)
                         if (item.date.isNotBlank()) Text("Event date: ${item.date}", color = LibraryPlum)
                         if (item.entryDate.isNotBlank()) Text("Entry date: ${item.entryDate}", color = LibraryPlum)
