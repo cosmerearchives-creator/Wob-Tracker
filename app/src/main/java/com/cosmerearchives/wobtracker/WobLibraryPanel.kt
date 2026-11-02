@@ -17,7 +17,7 @@ private val LibraryPlum = Color(0xFF6B5C87)
 private val LibraryInk = Color(0xFF37343C)
 
 @Composable
-fun WobLibraryPanel(library: WobLibrary) {
+fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
     var query by remember { mutableStateOf("") }
     var filterBy by remember { mutableStateOf("All") }
     var categoryFilter by remember { mutableStateOf("All works") }
@@ -27,7 +27,7 @@ fun WobLibraryPanel(library: WobLibrary) {
     var selectedId by remember { mutableStateOf<Int?>(null) }
     var saveMessage by remember { mutableStateOf<String?>(null) }
     var saveSucceeded by remember { mutableStateOf(false) }
-    val items = remember(query,filterBy,categoryFilter,refresh) { library.entries(query, filterBy, categoryFilter) }
+    val items = remember(query,filterBy,categoryFilter,refresh,libraryRevision) { library.entries(query, filterBy, categoryFilter) }
     val current = items.firstOrNull { it.id == selectedId }
     var tags by remember(current?.id, refresh) { mutableStateOf(current?.myTags ?: "") }
     var notes by remember(current?.id, refresh) { mutableStateOf(current?.myNotes ?: "") }
