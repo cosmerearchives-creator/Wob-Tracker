@@ -8,11 +8,11 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = false, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false)
+data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = true, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false)
 
-class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 3) {
+class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 4) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 0, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0)")
+        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 1, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0)")
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
@@ -22,6 +22,10 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         if (oldVersion < 3) {
             db.execSQL("ALTER TABLE entries ADD COLUMN cosmere INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE entries ADD COLUMN extended_works INTEGER NOT NULL DEFAULT 0")
+        }
+        if (oldVersion < 4) {
+            // Existing entries were originally imported unchecked; put them in the review queue once.
+            db.execSQL("UPDATE entries SET needs_review=1")
         }
     }
 
@@ -54,6 +58,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         val values = ContentValues().apply {
             put("id", entry.id); put("event", entry.event); put("date", entry.date)
             put("transcript", entry.transcript); put("source_tags", entry.sourceTags)
+            put("needs_review", 1)
         }
         // CONFLICT_IGNORE guarantees a re-import never replaces personal edits.
         writableDatabase.insertWithOnConflict("entries", null, values, SQLiteDatabase.CONFLICT_IGNORE)
