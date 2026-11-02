@@ -80,10 +80,14 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
 
-    /** Small bounded sample, fetched only when explicitly requested. */
+    fun hasEntry(id: Int): Boolean =
+        readableDatabase.rawQuery("SELECT 1 FROM entries WHERE id=? LIMIT 1", arrayOf(id.toString())).use { it.moveToFirst() }
+
+    /** Small bounded sample, fetched only when explicitly requested. Skips locally stored IDs before HTTP. */
     fun importSamples(): Int {
         var imported = 0
         for (id in listOf(1356,1290,1393)) {
+            if (hasEntry(id)) continue
             val connection = URL("https://wob.coppermind.net/api/entry/$id/").openConnection() as HttpURLConnection
             connection.connectTimeout = 15000
             connection.readTimeout = 20000
