@@ -20,13 +20,14 @@ private val LibraryInk = Color(0xFF37343C)
 fun WobLibraryPanel(library: WobLibrary) {
     var query by remember { mutableStateOf("") }
     var filterBy by remember { mutableStateOf("All") }
+    var categoryFilter by remember { mutableStateOf("All works") }
     var refresh by remember { mutableIntStateOf(0) }
     var importing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Import three sample WoBs to begin your offline library.") }
     var selectedId by remember { mutableStateOf<Int?>(null) }
     var saveMessage by remember { mutableStateOf<String?>(null) }
     var saveSucceeded by remember { mutableStateOf(false) }
-    val items = remember(query,filterBy,refresh) { library.entries(query, filterBy) }
+    val items = remember(query,filterBy,categoryFilter,refresh) { library.entries(query, filterBy, categoryFilter) }
     val current = items.firstOrNull { it.id == selectedId }
     var tags by remember(current?.id, refresh) { mutableStateOf(current?.myTags ?: "") }
     var notes by remember(current?.id, refresh) { mutableStateOf(current?.myNotes ?: "") }
@@ -62,6 +63,11 @@ fun WobLibraryPanel(library: WobLibrary) {
                 FilterChip(selected = filterBy == filter, onClick = { filterBy = filter }, label = { Text(filter) })
             }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            listOf("All works", "Cosmere", "Extended Works").forEach { category ->
+                FilterChip(selected = categoryFilter == category, onClick = { categoryFilter = category }, label = { Text(category) })
+            }
+        }
         Text("${items.size} saved WoBs shown", color = LibraryInk, style = MaterialTheme.typography.labelMedium)
         items.forEach { item ->
             ElevatedCard(onClick = { selectedId = if (selectedId == item.id) null else item.id; saveMessage = null }, modifier = Modifier.fillMaxWidth()) {
@@ -69,6 +75,10 @@ fun WobLibraryPanel(library: WobLibrary) {
                     Text("WoB #${item.id} · ${item.event}", color = LibraryPlum, fontWeight = FontWeight.SemiBold)
                     if (item.date.isNotBlank()) Text(item.date, style = MaterialTheme.typography.labelSmall)
                     if (item.myTags.isNotBlank()) Text("My tags: ${item.myTags}", style = MaterialTheme.typography.bodySmall)
+                    if (item.cosmere || item.extendedWorks) Text(
+                        listOfNotNull(if (item.cosmere) "Cosmere" else null, if (item.extendedWorks) "Extended Works" else null).joinToString(" · "),
+                        color = LibraryPlum, style = MaterialTheme.typography.labelMedium
+                    )
                     if (item.needsReview || item.needsExport) Text(
                         listOfNotNull(if (item.needsReview) "Needs review" else null, if (item.needsExport) "Needs export" else null).joinToString(" · "),
                         color = LibraryPlum, style = MaterialTheme.typography.labelMedium
@@ -77,6 +87,33 @@ fun WobLibraryPanel(library: WobLibrary) {
                         HorizontalDivider()
                         Text(Html.fromHtml(item.transcript, Html.FROM_HTML_MODE_COMPACT).toString(), color = LibraryInk)
                         if (item.sourceTags.isNotBlank()) Text("Source tags: ${item.sourceTags}", color = LibraryPlum)
+                        Text("Work classification", color = LibraryPlum, fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(checked = item.cosmere, onCheckedChange = { checked ->
+                                try {
+                                    saveSucceeded = library.saveCategories(item.id, checked, item.extendedWorks)
+                                    saveMessage = if (saveSucceeded) "✓ Work classification saved." else "Could not save classification."
+                                    if (saveSucceeded) refresh++
+                                } catch (e: Exception) {
+                                    saveSucceeded = false
+                                    saveMessage = "Could not save classification."
+                                }
+                            })
+                            Text("Cosmere", color = LibraryInk)
+                        }
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(checked = item.extendedWorks, onCheckedChange = { checked ->
+                                try {
+                                    saveSucceeded = library.saveCategories(item.id, item.cosmere, checked)
+                                    saveMessage = if (saveSucceeded) "✓ Work classification saved." else "Could not save classification."
+                                    if (saveSucceeded) refresh++
+                                } catch (e: Exception) {
+                                    saveSucceeded = false
+                                    saveMessage = "Could not save classification."
+                                }
+                            })
+                            Text("Extended Works", color = LibraryInk)
+                        }
                         Text("My workflow", color = LibraryPlum, fontWeight = FontWeight.SemiBold)
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             Checkbox(checked = item.needsReview, onCheckedChange = { checked ->
