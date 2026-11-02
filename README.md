@@ -1,19 +1,13 @@
 # WoB Tracker
 
-An Android-first Word of Brandon tracker. This initial foundation is deliberately feature-light.
+Independent Android app for Words of Brandon. Initial placeholder UI uses a warm off-white, lavender and plum palette. Tracker features will be planned separately.
 
-## Development
+## Android
 
-- Kotlin, Jetpack Compose, Material 3
-- Android Gradle Plugin 8.9.2, Gradle 8.11.1, JDK 17
-- Android SDK 35; minimum Android 26
-- Application ID: `com.cosmerearchives.wobtracker`
-- Run locally with Gradle 8.11.1: `gradle assembleDebug` (or generate a Gradle wrapper with `gradle wrapper`).
+Kotlin + Jetpack Compose, Material 3, SDK 35, minimum SDK 26, Java 17, Gradle 8.11.1.
 
-## GitHub Releases and signing
+## Updates and releases
 
-See [SIGNING.md](SIGNING.md). Build verification runs for pushes to `main`. Signed APK publication is triggered by a `v*` tag after the required repository secrets have been configured.
+Changes pushed to `main` automatically build, sign and publish a versioned APK through GitHub Actions **when the signing secrets are configured and the build succeeds**. The app checks published GitHub Releases on launch and on demand, then offers a user-approved APK installation. No manual tagging is needed.
 
-Updates are *user-approved*, not silent. The app checks GitHub Releases on launch or on demand, downloads the newest versioned APK, and hands it to Android's installer. It only installs APKs with the matching app ID and signing certificate (enforced by Android).
-
-The release workflow needs `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. Never commit a keystore or credentials. A release tag must be monotonically newer (e.g., `v0.1.1-alpha`). Preserve your original keystore for all future app updates.
+Read [SIGNING.md](SIGNING.md) to configure the four GitHub Actions secrets and protect the signing key. [Build status](https://github.com/cosmerearchives-creator/Wob-Tracker/actions) · [Releases](https://github.com/cosmerearchives-creator/Wob-Tracker/releases).
