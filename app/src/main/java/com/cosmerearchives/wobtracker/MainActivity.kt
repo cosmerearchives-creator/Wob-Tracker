@@ -92,6 +92,11 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             else -> {
+                                Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                        BackupTools(library) { libraryRevision++ }
+                                    }
+                                }
                                 Text("App tools & diagnostics", color = Plum, style = MaterialTheme.typography.titleMedium)
                                 Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
