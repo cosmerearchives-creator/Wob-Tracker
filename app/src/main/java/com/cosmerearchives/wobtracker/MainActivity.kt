@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,6 +41,8 @@ class MainActivity : ComponentActivity() {
             var showWob by remember { mutableStateOf(false) }
             var libraryRevision by remember { mutableIntStateOf(0) }
             var selectedTab by remember { mutableStateOf("Library") }
+            val contentScrollState = rememberScrollState()
+            val scrollScope = rememberCoroutineScope()
 
             MaterialTheme(colorScheme = lightColorScheme(primary = Plum, background = Background, surface = Color.White, onBackground = Ink)) {
                 Column(Modifier.fillMaxSize().background(Background)) {
@@ -67,7 +70,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     Column(
-                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 16.dp),
+                        modifier = Modifier.fillMaxSize().verticalScroll(contentScrollState).padding(horizontal = 10.dp, vertical = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         when (selectedTab) {
@@ -87,7 +90,9 @@ class MainActivity : ComponentActivity() {
                             "Review" -> {
                                 Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                                        ReviewMode(library, libraryRevision) { libraryRevision++ }
+                                        ReviewMode(library, libraryRevision, onChanged = { libraryRevision++ }, onNext = {
+                                            scrollScope.launch { contentScrollState.scrollTo(0) }
+                                        })
                                     }
                                 }
                             }
