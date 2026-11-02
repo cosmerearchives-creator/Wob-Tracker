@@ -1,15 +1,15 @@
 package com.cosmerearchives.wobtracker
 
-import android.os.Bundle
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.text.Html
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,98 +34,119 @@ class MainActivity : ComponentActivity() {
         val library = WobLibrary(applicationContext)
         updates.check()
         setContent {
-            val state by updates.state.collectAsState()
+            val updateState by updates.state.collectAsState()
             var archiveResult by remember { mutableStateOf(ArchiveProbeResult("Not tested yet")) }
             var wobPreview by remember { mutableStateOf(WobPreviewState()) }
             var showWob by remember { mutableStateOf(false) }
             var libraryRevision by remember { mutableIntStateOf(0) }
-            MaterialTheme(colorScheme = lightColorScheme(primary = Plum, background = Background, surface = Color.White, onBackground = Ink)) {
-                Column(
-                    modifier = Modifier.fillMaxSize().background(Background).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    Spacer(Modifier.height(16.dp))
-                    Text("WoB Tracker", fontSize = 33.sp, color = Ink, fontWeight = FontWeight.Bold)
-                    Text("Word of Brandon companion", color = Plum, fontSize = 16.sp)
-                    Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(state.message, color = Ink)
-                            if (state.downloadUrl != null) {
-                                Button(onClick = { updates.installLatest() }, colors = ButtonDefaults.buttonColors(containerColor = Plum)) {
-                                    Text("Install update")
-                                }
-                            }
-                            OutlinedButton(onClick = { updates.check() }) { Text("Check for updates") }
-                        }
-                    }
-                    Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                            Text("Your collection starts here", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-                            Spacer(Modifier.height(10.dp))
-                            Text("Update test: if you can read this message, the new APK installed successfully!", color = Ink)
-                        }
-                    }
-                    Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Arcanum connection test", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                            Text(archiveResult.status, color = Ink)
-                            archiveResult.total?.let { Text("Archive reports $it entries", color = Plum) }
-                            archiveResult.examples.forEach { Text(it, color = Ink, fontSize = 13.sp) }
-                            Button(onClick = { probe.run { archiveResult = it } }, colors = ButtonDefaults.buttonColors(containerColor = Plum)) {
-                                Text("Test Arcanum API")
-                            }
-                        }
-                    }
-                    Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Single WoB preview", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-                            Text("Read an actual entry from Arcanum. Personal tags and notes are placeholders for now.", color = Ink, fontSize = 14.sp)
-                            Button(onClick = {
-                                showWob = true
-                                previewLoader.load { wobPreview = it }
-                            }, colors = ButtonDefaults.buttonColors(containerColor = Plum)) {
-                                Text(if (showWob) "Reload WoB #1356" else "Open sample WoB")
-                            }
-                            if (showWob) {
-                                if (wobPreview.loading) CircularProgressIndicator(color = Plum)
-                                wobPreview.error?.let { Text(it, color = Color(0xFFBC3E42)) }
-                                wobPreview.entry?.let { entry ->
-                                    Text("WoB #${entry.id}", color = Plum, fontWeight = FontWeight.Bold)
-                                    Text(entry.event, color = Ink, fontWeight = FontWeight.Medium)
-                                    if (entry.eventDate.isNotBlank()) Text(entry.eventDate, color = Plum, fontSize = 13.sp)
-                                    entry.lines.forEach { line ->
-                                        Text(line.speaker, color = Plum, fontWeight = FontWeight.SemiBold)
-                                        Text(Html.fromHtml(line.text, Html.FROM_HTML_MODE_COMPACT).toString(), color = Ink)
-                                    }
-                                    if (entry.note.isNotBlank()) Text("Source note: " + Html.fromHtml(entry.note, Html.FROM_HTML_MODE_COMPACT).toString(), color = Ink, fontSize = 13.sp)
-                                    if (entry.tags.isNotEmpty()) Text("Arcanum tags: " + entry.tags.joinToString(" · "), color = Plum, fontSize = 13.sp)
-                                    OutlinedButton(onClick = {
-                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wob.coppermind.net/entry/${entry.id}/")))
-                                    }) { Text("View original on Arcanum") }
-                                    HorizontalDivider()
-                                    Text("My tags — coming soon", color = Plum)
-                                    Text("My notes — coming soon", color = Plum)
-                                }
-                            }
-                        }
-                    }
+            var selectedTab by remember { mutableStateOf("Library") }
 
-                    Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                            ArchiveBrowser(library) { libraryRevision++ }
+            MaterialTheme(colorScheme = lightColorScheme(primary = Plum, background = Background, surface = Color.White, onBackground = Ink)) {
+                Column(Modifier.fillMaxSize().background(Background)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 20.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("WoB Tracker", fontSize = 29.sp, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { selectedTab = if (selectedTab == "Tools") "Library" else "Tools" }) {
+                            Text(if (selectedTab == "Tools") "Back" else "Tools", color = Plum)
                         }
                     }
-                    Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                            ReviewMode(library, libraryRevision) { libraryRevision++ }
+                    if (updateState.downloadUrl != null) {
+                        Surface(color = Lavender, modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp), shape = RoundedCornerShape(14.dp)) {
+                            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(updateState.message, color = Ink, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { selectedTab = "Tools" }) { Text("View", color = Plum) }
+                            }
                         }
                     }
-                    Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                            WobLibraryPanel(library, libraryRevision)
+                    PrimaryTabRow(selectedTabIndex = when (selectedTab) { "Library" -> 0; "Review" -> 1; else -> 2 }) {
+                        listOf("Library", "Review", "Tools").forEach { tab ->
+                            Tab(selected = selectedTab == tab, onClick = { selectedTab = tab }, text = { Text(tab) })
                         }
                     }
-                    Text("Version " + BuildConfig.VERSION_NAME, color = Plum, fontSize = 12.sp)
+                    Column(
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        when (selectedTab) {
+                            "Library" -> {
+                                Text("Your personal Word of Brandon archive", color = Plum)
+                                Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                        ArchiveBrowser(library) { libraryRevision++ }
+                                    }
+                                }
+                                Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                        WobLibraryPanel(library, libraryRevision)
+                                    }
+                                }
+                            }
+                            "Review" -> {
+                                Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                        ReviewMode(library, libraryRevision) { libraryRevision++ }
+                                    }
+                                }
+                            }
+                            else -> {
+                                Text("App tools & diagnostics", color = Plum, style = MaterialTheme.typography.titleMedium)
+                                Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Text(updateState.message, color = Ink)
+                                        if (updateState.downloadUrl != null) {
+                                            Button(onClick = { updates.installLatest() }) { Text("Install update") }
+                                        }
+                                        OutlinedButton(onClick = { updates.check() }) { Text("Check for updates") }
+                                    }
+                                }
+                                Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text("Update test", color = Ink, fontWeight = FontWeight.SemiBold)
+                                        Text("If you can read this message, the earlier updater test succeeded.", color = Ink)
+                                    }
+                                }
+                                Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Text("Arcanum connection test", color = Ink, fontWeight = FontWeight.SemiBold)
+                                        Text(archiveResult.status, color = Ink)
+                                        archiveResult.total?.let { Text("Archive reports $it entries", color = Plum) }
+                                        archiveResult.examples.forEach { Text(it, color = Ink) }
+                                        Button(onClick = { probe.run { archiveResult = it } }) { Text("Test Arcanum API") }
+                                    }
+                                }
+                                Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Text("Single WoB preview", color = Ink, fontWeight = FontWeight.SemiBold)
+                                        Button(onClick = {
+                                            showWob = true
+                                            previewLoader.load { wobPreview = it }
+                                        }) { Text(if (showWob) "Reload WoB #1356" else "Open sample WoB") }
+                                        if (showWob) {
+                                            if (wobPreview.loading) CircularProgressIndicator(color = Plum)
+                                            wobPreview.error?.let { Text(it, color = Color(0xFFBC3E42)) }
+                                            wobPreview.entry?.let { entry ->
+                                                Text("WoB #${entry.id} · ${entry.event}", color = Plum, fontWeight = FontWeight.Bold)
+                                                if (entry.eventDate.isNotBlank()) Text(entry.eventDate, color = Plum)
+                                                entry.lines.forEach { line ->
+                                                    Text(line.speaker, color = Plum, fontWeight = FontWeight.SemiBold)
+                                                    Text(Html.fromHtml(line.text, Html.FROM_HTML_MODE_COMPACT).toString(), color = Ink)
+                                                }
+                                                if (entry.note.isNotBlank()) Text("Source note: " + Html.fromHtml(entry.note, Html.FROM_HTML_MODE_COMPACT).toString(), color = Ink)
+                                                if (entry.tags.isNotEmpty()) Text("Source tags: " + entry.tags.joinToString(" · "), color = Plum)
+                                                OutlinedButton(onClick = {
+                                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wob.coppermind.net/entry/${entry.id}/")))
+                                                }) { Text("View original on Arcanum") }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Text("Version " + BuildConfig.VERSION_NAME, color = Plum, fontSize = 12.sp)
+                    }
                 }
             }
         }
