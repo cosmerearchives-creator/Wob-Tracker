@@ -8,20 +8,24 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = false, val needsExport: Boolean = false)
+data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = false, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false)
 
-class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 2) {
+class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 0, needs_export INTEGER NOT NULL DEFAULT 0)")
+        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 0, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0)")
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE entries ADD COLUMN needs_review INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE entries ADD COLUMN needs_export INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE entries ADD COLUMN cosmere INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE entries ADD COLUMN extended_works INTEGER NOT NULL DEFAULT 0")
+        }
     }
 
-    fun entries(query: String = "", filterBy: String = "All"): List<SavedWob> {
+    fun entries(query: String = "", filterBy: String = "All", category: String = "All works"): List<SavedWob> {
         val result = mutableListOf<SavedWob>()
         val filter = "%${query.trim()}%"
         val extra = when (filterBy) {
@@ -30,12 +34,17 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
             "Both" -> " AND needs_review=1 AND needs_export=1"
             else -> ""
         }
+        val categoryClause = when (category) {
+            "Cosmere" -> " AND cosmere=1"
+            "Extended Works" -> " AND extended_works=1"
+            else -> ""
+        }
         readableDatabase.rawQuery(
-            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$extra ORDER BY id DESC",
+            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$extra$categoryClause ORDER BY id DESC",
             arrayOf(filter, filter, filter, filter)
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                result.add(SavedWob(cursor.getInt(0),cursor.getString(1),cursor.getString(2),cursor.getString(3),cursor.getString(4),cursor.getString(5),cursor.getString(6),cursor.getInt(7) != 0,cursor.getInt(8) != 0))
+                result.add(SavedWob(cursor.getInt(0),cursor.getString(1),cursor.getString(2),cursor.getString(3),cursor.getString(4),cursor.getString(5),cursor.getString(6),cursor.getInt(7) != 0,cursor.getInt(8) != 0,cursor.getInt(9) != 0,cursor.getInt(10) != 0))
             }
         }
         return result
@@ -59,6 +68,14 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         val values = ContentValues().apply {
             put("needs_review", if (needsReview) 1 else 0)
             put("needs_export", if (needsExport) 1 else 0)
+        }
+        return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
+    }
+
+    fun saveCategories(id: Int, cosmere: Boolean, extendedWorks: Boolean): Boolean {
+        val values = ContentValues().apply {
+            put("cosmere", if (cosmere) 1 else 0)
+            put("extended_works", if (extendedWorks) 1 else 0)
         }
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
