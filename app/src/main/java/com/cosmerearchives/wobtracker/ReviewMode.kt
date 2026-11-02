@@ -15,7 +15,7 @@ private val ReviewPlum = Color(0xFF6B5C87)
 private val ReviewInk = Color(0xFF37343C)
 
 @Composable
-fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit) {
+fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit, onNext: () -> Unit) {
     var localRefresh by remember { mutableIntStateOf(0) }
     val pending = remember(libraryRevision, localRefresh) { library.entries(filterBy = "Needs review").sortedBy { it.id } }
     var passedIds by remember { mutableStateOf(setOf<Int>()) }
@@ -77,6 +77,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit)
                         message = "✓ Reviewed and saved."
                         localRefresh++
                         onChanged()
+                        onNext()
                     } else message = "Could not save review. This entry remains pending."
                 } catch (e: Exception) { message = "Save failed. This entry remains pending." }
             }, colors = ButtonDefaults.buttonColors(containerColor = ReviewPlum)) {
@@ -89,6 +90,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit)
                         message = "✓ Draft saved. Entry remains in the review queue."
                         localRefresh++
                         onChanged()
+                        onNext()
                     } else message = "Could not save draft."
                 } catch (e: Exception) { message = "Could not save draft." }
             }) { Text("Save without reviewing & next") }
@@ -96,6 +98,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit)
                 passedIds = passedIds + current.id
                 localRefresh++
                 message = ""
+                onNext()
             }) { Text("Skip without saving") }
             if (message.isNotBlank()) Text(message, color = if (message.startsWith("✓")) Color(0xFF386D52) else Color(0xFFBC3E42))
             Text("Mark reviewed removes an entry from the queue. Save & next or Skip moves forward for this pass but leaves it pending. Skipping discards unsaved notes, tags, classification and export changes.", style = MaterialTheme.typography.bodySmall, color = ReviewInk)
