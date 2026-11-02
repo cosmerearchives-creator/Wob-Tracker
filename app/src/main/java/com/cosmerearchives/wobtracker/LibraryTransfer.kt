@@ -98,21 +98,23 @@ object LibraryTransfer {
                 val obj = arr.getJSONObject(i)
                 val id = obj.getInt("id")
                 val exists = db.rawQuery("SELECT 1 FROM entries WHERE id=?",arrayOf(id.toString())).use { it.moveToFirst() }
-                if (exists) { skipped++; continue }
+                if (exists) skipped++
+                if (!exists) {
                 val values = ContentValues()
                 columns.forEach { col ->
                     if (numbers.contains(col)) values.put(col,obj.getInt(col))
                     else values.put(col,obj.getString(col))
                 }
                 require(db.insertOrThrow("entries",null,values) != -1L)
+                added++
+                }
                 val marks = obj.getJSONArray("highlights")
                 for (j in 0 until marks.length()) {
                     val mark = marks.getJSONObject(j)
-                    db.insertOrThrow("highlights",null,ContentValues().apply {
+                    db.insertWithOnConflict("highlights",null,ContentValues().apply {
                         put("entry_id",id); put("start_offset",mark.getInt("start")); put("end_offset",mark.getInt("end")); put("quote",mark.getString("quote"))
-                    })
+                    }, SQLiteDatabase.CONFLICT_IGNORE)
                 }
-                added++
             }
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
