@@ -85,6 +85,30 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
 
+    /** Atomically save annotations and finish review, so a failed save never advances the queue. */
+    fun completeReview(id: Int, tags: String, notes: String, needsExport: Boolean, cosmere: Boolean, extendedWorks: Boolean): Boolean {
+        val values = ContentValues().apply {
+            put("my_tags", tags)
+            put("my_notes", notes)
+            put("needs_review", 0)
+            put("needs_export", if (needsExport) 1 else 0)
+            put("cosmere", if (cosmere) 1 else 0)
+            put("extended_works", if (extendedWorks) 1 else 0)
+        }
+        return writableDatabase.update("entries", values, "id=? AND needs_review=1", arrayOf(id.toString())) == 1
+    }
+
+    fun saveReviewDraft(id: Int, tags: String, notes: String, needsExport: Boolean, cosmere: Boolean, extendedWorks: Boolean): Boolean {
+        val values = ContentValues().apply {
+            put("my_tags", tags)
+            put("my_notes", notes)
+            put("needs_export", if (needsExport) 1 else 0)
+            put("cosmere", if (cosmere) 1 else 0)
+            put("extended_works", if (extendedWorks) 1 else 0)
+        }
+        return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
+    }
+
     fun savedEntryCount(): Int =
         readableDatabase.rawQuery("SELECT COUNT(*) FROM entries", null).use { cursor ->
             if (cursor.moveToFirst()) cursor.getInt(0) else 0
