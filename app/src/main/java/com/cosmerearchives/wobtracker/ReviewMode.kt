@@ -18,8 +18,8 @@ private val ReviewInk = Color(0xFF37343C)
 fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit) {
     var localRefresh by remember { mutableIntStateOf(0) }
     val pending = remember(libraryRevision, localRefresh) { library.entries(filterBy = "Needs review").sortedBy { it.id } }
-    var activeId by remember { mutableStateOf<Int?>(null) }
-    val current = pending.firstOrNull { it.id == activeId } ?: pending.firstOrNull()
+    var passedIds by remember { mutableStateOf(setOf<Int>()) }
+    val current = pending.firstOrNull { it.id !in passedIds }
     var tags by remember(current?.id, localRefresh) { mutableStateOf(current?.myTags.orEmpty()) }
     var notes by remember(current?.id, localRefresh) { mutableStateOf(current?.myNotes.orEmpty()) }
     var cosmere by remember(current?.id, localRefresh) { mutableStateOf(current?.cosmere ?: false) }
@@ -33,7 +33,12 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit)
         Text("Review Mode", style = MaterialTheme.typography.titleLarge, color = ReviewInk, fontWeight = FontWeight.Bold)
         Text("${pending.size} WoBs need review", color = ReviewPlum)
         if (current == null) {
-            Text("You're caught up! Import more entries to continue reviewing.", color = ReviewInk)
+            if (pending.isEmpty()) {
+                Text("You're caught up! Import more entries to continue reviewing.", color = ReviewInk)
+            } else {
+                Text("End of this review pass. ${pending.size} WoBs still need review.", color = ReviewInk)
+                OutlinedButton(onClick = { passedIds = emptySet(); message = "" }) { Text("Start another pass") }
+            }
         } else {
             Text("WoB #${current.id} · ${current.event}", color = ReviewPlum, fontWeight = FontWeight.SemiBold)
             if (current.date.isNotBlank()) Text(current.date, color = ReviewInk)
@@ -68,8 +73,8 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit)
             Button(onClick = {
                 try {
                     if (library.completeReview(current.id, tags, notes, export, cosmere, extended)) {
-                        activeId = null
-                        message = "✓ Reviewed and saved. Moving to next WoB."
+                        passedIds = passedIds + current.id
+                        message = "✓ Reviewed and saved."
                         localRefresh++
                         onChanged()
                     } else message = "Could not save review. This entry remains pending."
@@ -80,14 +85,20 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit)
             OutlinedButton(onClick = {
                 try {
                     if (library.saveReviewDraft(current.id, tags, notes, export, cosmere, extended)) {
-                        message = "✓ Draft saved. Entry still needs review."
+                        passedIds = passedIds + current.id
+                        message = "✓ Draft saved. Entry remains in the review queue."
                         localRefresh++
                         onChanged()
                     } else message = "Could not save draft."
                 } catch (e: Exception) { message = "Could not save draft." }
-            }) { Text("Save without reviewing") }
+            }) { Text("Save & next (keep pending)") }
+            OutlinedButton(onClick = {
+                passedIds = passedIds + current.id
+                localRefresh++
+                message = ""
+            }) { Text("Skip without saving") }
             if (message.isNotBlank()) Text(message, color = if (message.startsWith("✓")) Color(0xFF386D52) else Color(0xFFBC3E42))
-            Text("Only saved WoBs appear here. Finish one to advance; reviewed entries remain in your library.", style = MaterialTheme.typography.bodySmall, color = ReviewInk)
+            Text("Mark reviewed removes an entry from the queue. Save & next or Skip moves forward for this pass but leaves it pending. Skipping discards unsaved notes, tags, classification and export changes.", style = MaterialTheme.typography.bodySmall, color = ReviewInk)
         }
     }
 }
