@@ -9,6 +9,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import java.util.concurrent.atomic.AtomicBoolean
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import org.json.JSONObject
@@ -58,9 +60,65 @@ private fun fetchArchivePage(page: Int): BrowserPage {
 fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
     var page by remember { mutableStateOf<BrowserPage?>(null) }
     var busy by remember { mutableStateOf(false) }
-    var notice by remember { mutableStateOf("Browse Arcanum one page at a time. No automatic bulk downloads.") }
+    var notice by remember { mutableStateOf("Browse Arcanum. Bulk import runs in short, user-started batches.") }
     var selected by remember { mutableStateOf<Int?>(null) }
     var savedIds by remember { mutableStateOf(setOf<Int>()) }
+    val context = LocalContext.current
+    val checkpoint = remember { context.getSharedPreferences("archive_import", android.content.Context.MODE_PRIVATE) }
+    var nextImportPage by remember { mutableIntStateOf(checkpoint.getInt("next_page", 1).coerceAtLeast(1)) }
+    var importing by remember { mutableStateOf(false) }
+    var importProgress by remember { mutableStateOf("") }
+    val cancelImport = remember { AtomicBoolean(false) }
+    fun importBatch() {
+        if (importing || busy) return
+        importing = true
+        cancelImport.set(false)
+        val startingPage = nextImportPage
+        thread {
+            var imported = 0
+            var skipped = 0
+            var processed = 0
+            var failure: String? = null
+            for (pageNumber in startingPage until startingPage + 3) {
+                if (cancelImport.get()) break
+                try {
+                    val fetched = fetchArchivePage(pageNumber)
+                    if (fetched.entries.isEmpty()) break
+                    for (entry in fetched.entries) {
+                        if (cancelImport.get()) break
+                        if (library.hasEntry(entry.id)) skipped++
+                        else {
+                            library.saveSource(entry)
+                            if (!library.hasEntry(entry.id)) error("Could not save WoB #${entry.id}")
+                            imported++
+                        }
+                        processed++
+                    }
+                    // Never advance beyond a page that was only partially saved.
+                    if (cancelImport.get()) break
+                    checkpoint.edit().putInt("next_page", pageNumber + 1).commit()
+                    browserMain.post {
+                        nextImportPage = pageNumber + 1
+                        importProgress = "Saved $imported new · Skipped $skipped duplicates · Checked $processed entries"
+                        onLibraryChanged()
+                    }
+                    if (fetched.entries.size < 50 || fetched.page * 50 >= fetched.total) break
+                    Thread.sleep(1200L)
+                } catch (e: Exception) {
+                    failure = "Stopped on page $pageNumber: ${e.javaClass.simpleName}"
+                    break
+                }
+            }
+            browserMain.post {
+                importing = false
+                importProgress = listOfNotNull(
+                    "Imported $imported · Skipped $skipped · Processed $processed",
+                    failure ?: if (cancelImport.get()) "Paused; resume at page $nextImportPage" else null
+                ).joinToString(" · ")
+                onLibraryChanged()
+            }
+        }
+    }
 
     fun load(pageNumber: Int) {
         if (busy) return
@@ -91,6 +149,15 @@ fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
         Text("Uses the general entry listing, not search results. This helps include entries that are not searchable on Arcanum.", color = BrowserInk)
         if (page == null) Button(enabled = !busy, onClick = { load(1) }) { Text("Load archive entries") }
         Text(notice, style = MaterialTheme.typography.bodySmall, color = BrowserPlum)
+        Text("Bulk import checkpoint: page $nextImportPage", color = BrowserPlum)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(enabled = !importing && !busy, onClick = { importBatch() }) {
+                Text("Import next 3 pages")
+            }
+            if (importing) OutlinedButton(onClick = { cancelImport.set(true) }) { Text("Pause") }
+        }
+        if (importing) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        if (importProgress.isNotBlank()) Text(importProgress, style = MaterialTheme.typography.bodySmall, color = BrowserInk)
         if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         page?.let { current ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
