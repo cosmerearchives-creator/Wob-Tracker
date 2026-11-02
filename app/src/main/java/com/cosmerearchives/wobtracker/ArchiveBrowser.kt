@@ -67,7 +67,10 @@ fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
     val checkpoint = remember { context.getSharedPreferences("archive_import", android.content.Context.MODE_PRIVATE) }
     var nextImportPage by remember { mutableIntStateOf(checkpoint.getInt("next_page", 1).coerceAtLeast(1)) }
     var importing by remember { mutableStateOf(false) }
-    var importProgress by remember { mutableStateOf("") }
+    var importProgress by remember { mutableStateOf(checkpoint.getString("last_summary", "") ?: "") }
+    var lastFailure by remember { mutableStateOf(checkpoint.getString("last_failure", "") ?: "") }
+    var savedCount by remember { mutableIntStateOf(library.savedEntryCount()) }
+    var totalReported by remember { mutableIntStateOf(checkpoint.getInt("reported_total", 0)) }
     val cancelImport = remember { AtomicBoolean(false) }
     fun importBatch() {
         if (importing || busy) return
@@ -96,8 +99,11 @@ fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
                     }
                     // Never advance beyond a page that was only partially saved.
                     if (cancelImport.get()) break
-                    checkpoint.edit().putInt("next_page", pageNumber + 1).commit()
+                    checkpoint.edit().putInt("next_page", pageNumber + 1)
+                        .putInt("reported_total", fetched.total).commit()
                     browserMain.post {
+                        totalReported = fetched.total
+                        savedCount = library.savedEntryCount()
                         nextImportPage = pageNumber + 1
                         importProgress = "Saved $imported new · Skipped $skipped duplicates · Checked $processed entries"
                         onLibraryChanged()
@@ -106,15 +112,20 @@ fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
                     Thread.sleep(1200L)
                 } catch (e: Exception) {
                     failure = "Stopped on page $pageNumber: ${e.javaClass.simpleName}"
+                    checkpoint.edit().putString("last_failure", failure).apply()
                     break
                 }
             }
             browserMain.post {
                 importing = false
+                savedCount = library.savedEntryCount()
+                lastFailure = failure ?: ""
+                checkpoint.edit().putString("last_failure", lastFailure).apply()
                 importProgress = listOfNotNull(
                     "Imported $imported · Skipped $skipped · Processed $processed",
                     failure ?: if (cancelImport.get()) "Paused; resume at page $nextImportPage" else null
                 ).joinToString(" · ")
+                checkpoint.edit().putString("last_summary", importProgress).apply()
                 onLibraryChanged()
             }
         }
@@ -130,6 +141,8 @@ fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
                 val alreadySaved = result.entries.filter { library.hasEntry(it.id) }.map { it.id }.toSet()
                 browserMain.post {
                     page = result
+                    totalReported = result.total
+                    checkpoint.edit().putInt("reported_total", result.total).apply()
                     savedIds = alreadySaved
                     selected = null
                     notice = "Page ${result.page} · ${result.total} entries reported by Arcanum"
@@ -149,7 +162,25 @@ fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
         Text("Uses the general entry listing, not search results. This helps include entries that are not searchable on Arcanum.", color = BrowserInk)
         if (page == null) Button(enabled = !busy, onClick = { load(1) }) { Text("Load archive entries") }
         Text(notice, style = MaterialTheme.typography.bodySmall, color = BrowserPlum)
-        Text("Bulk import checkpoint: page $nextImportPage", color = BrowserPlum)
+        ElevatedCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("Import dashboard", style = MaterialTheme.typography.titleMedium, color = BrowserInk)
+                Text("Saved locally: $savedCount WoBs", color = BrowserInk)
+                Text("Next import page: $nextImportPage", color = BrowserPlum)
+                if (totalReported > 0) {
+                    Text("Arcanum reports $totalReported entries · ${(savedCount * 100f / totalReported).coerceAtMost(100f).toInt()}% saved locally",
+                        style = MaterialTheme.typography.bodySmall, color = BrowserInk)
+                    LinearProgressIndicator(progress = { (savedCount.toFloat() / totalReported).coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth())
+                }
+                if (lastFailure.isNotBlank()) {
+                    Text("Last import error: $lastFailure", color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                TextButton(onClick = { savedCount = library.savedEntryCount() }) { Text("Refresh counts") }
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(enabled = !importing && !busy, onClick = { importBatch() }) {
                 Text("Import next 3 pages")
@@ -179,6 +210,7 @@ fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
                                     if (library.hasEntry(entry.id)) {
                                         savedIds = savedIds + entry.id
                                         notice = "✓ WoB #${entry.id} saved to offline library."
+                                        savedCount = library.savedEntryCount()
                                         onLibraryChanged()
                                     } else notice = "Could not save entry."
                                 } catch (e: Exception) { notice = "Save failed. Please retry." }
