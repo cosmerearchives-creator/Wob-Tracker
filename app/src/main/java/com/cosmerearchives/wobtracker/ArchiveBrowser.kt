@@ -99,7 +99,7 @@ fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
             }
             current.entries.forEach { entry ->
                 ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.padding(horizontal = 8.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("WoB #${entry.id} · ${entry.event}", color = BrowserPlum, style = MaterialTheme.typography.titleSmall)
                         if (entry.date.isNotEmpty()) Text(entry.date, style = MaterialTheme.typography.labelSmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
