@@ -41,14 +41,14 @@ class MainActivity : ComponentActivity() {
             var libraryRevision by remember { mutableIntStateOf(0) }
             MaterialTheme(colorScheme = lightColorScheme(primary = Plum, background = Background, surface = Color.White, onBackground = Ink)) {
                 Column(
-                    modifier = Modifier.fillMaxSize().background(Background).verticalScroll(rememberScrollState()).padding(20.dp),
+                    modifier = Modifier.fillMaxSize().background(Background).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     Spacer(Modifier.height(16.dp))
                     Text("WoB Tracker", fontSize = 33.sp, color = Ink, fontWeight = FontWeight.Bold)
                     Text("Word of Brandon companion", color = Plum, fontSize = 16.sp)
                     Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(state.message, color = Ink)
                             if (state.downloadUrl != null) {
                                 Button(onClick = { updates.installLatest() }, colors = ButtonDefaults.buttonColors(containerColor = Plum)) {
@@ -59,14 +59,14 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(22.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
                             Text("Your collection starts here", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
                             Spacer(Modifier.height(10.dp))
                             Text("Update test: if you can read this message, the new APK installed successfully!", color = Ink)
                         }
                     }
                     Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("Arcanum connection test", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
                             Text(archiveResult.status, color = Ink)
                             archiveResult.total?.let { Text("Archive reports $it entries", color = Plum) }
@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("Single WoB preview", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
                             Text("Read an actual entry from Arcanum. Personal tags and notes are placeholders for now.", color = Ink, fontSize = 14.sp)
                             Button(onClick = {
@@ -111,12 +111,12 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
                             ArchiveBrowser(library) { libraryRevision++ }
                         }
                     }
                     Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
                             WobLibraryPanel(library, libraryRevision)
                         }
                     }
