@@ -87,6 +87,8 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                         HorizontalDivider()
                         Text(Html.fromHtml(item.transcript, Html.FROM_HTML_MODE_COMPACT).toString(), color = LibraryInk)
                         if (item.sourceTags.isNotBlank()) Text("Source tags: ${item.sourceTags}", color = LibraryPlum)
+                        OutlinedTextField(value = tags, onValueChange = { tags = it; saveMessage = null }, label = { Text("My tags (comma separated)") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = notes, onValueChange = { notes = it; saveMessage = null }, label = { Text("My notes") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
                         Text("Work classification", color = LibraryPlum, fontWeight = FontWeight.SemiBold)
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             Checkbox(checked = item.cosmere, onCheckedChange = { checked ->
@@ -151,8 +153,6 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                             })
                             Text("Needs export", color = LibraryInk)
                         }
-                        OutlinedTextField(value = tags, onValueChange = { tags = it; saveMessage = null }, label = { Text("My tags (comma separated)") }, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = notes, onValueChange = { notes = it; saveMessage = null }, label = { Text("My notes") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
                         Button(onClick = {
                             try {
                                 if (library.savePersonal(item.id, tags, notes)) {
