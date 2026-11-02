@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
         val updates = UpdateManager(this)
         val probe = ArcanumProbe()
         val previewLoader = WobPreviewLoader()
+        val library = WobLibrary(applicationContext)
         updates.check()
         setContent {
             val state by updates.state.collectAsState()
@@ -108,6 +109,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                            WobLibraryPanel(library)
+                        }
+                    }
                     Text("Version " + BuildConfig.VERSION_NAME, color = Plum, fontSize = 12.sp)
                 }
             }
