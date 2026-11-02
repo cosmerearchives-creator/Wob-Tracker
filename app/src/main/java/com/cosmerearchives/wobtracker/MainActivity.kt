@@ -115,6 +115,11 @@ class MainActivity : ComponentActivity() {
                             ArchiveBrowser(library) { libraryRevision++ }
                         }
                     }
+                    Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                            ReviewMode(library, libraryRevision) { libraryRevision++ }
+                        }
+                    }
                     Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
                         Column(Modifier.fillMaxWidth().padding(12.dp)) {
                             WobLibraryPanel(library, libraryRevision)
