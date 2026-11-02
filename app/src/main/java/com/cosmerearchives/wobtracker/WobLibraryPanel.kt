@@ -2,6 +2,7 @@ package com.cosmerearchives.wobtracker
 
 import android.text.Html
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -18,13 +19,14 @@ private val LibraryInk = Color(0xFF37343C)
 @Composable
 fun WobLibraryPanel(library: WobLibrary) {
     var query by remember { mutableStateOf("") }
+    var filterBy by remember { mutableStateOf("All") }
     var refresh by remember { mutableIntStateOf(0) }
     var importing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Import three sample WoBs to begin your offline library.") }
     var selectedId by remember { mutableStateOf<Int?>(null) }
     var saveMessage by remember { mutableStateOf<String?>(null) }
     var saveSucceeded by remember { mutableStateOf(false) }
-    val items = remember(query,refresh) { library.entries(query) }
+    val items = remember(query,filterBy,refresh) { library.entries(query, filterBy) }
     val current = items.firstOrNull { it.id == selectedId }
     var tags by remember(current?.id, refresh) { mutableStateOf(current?.myTags ?: "") }
     var notes by remember(current?.id, refresh) { mutableStateOf(current?.myNotes ?: "") }
@@ -55,6 +57,11 @@ fun WobLibraryPanel(library: WobLibrary) {
         ) { Text(if (importing) "Importing…" else "Import 3 sample WoBs") }
         Text(status, color = LibraryPlum, style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("Search offline library") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState())) {
+            listOf("All", "Needs review", "Needs export", "Both").forEach { filter ->
+                FilterChip(selected = filterBy == filter, onClick = { filterBy = filter }, label = { Text(filter) })
+            }
+        }
         Text("${items.size} saved WoBs shown", color = LibraryInk, style = MaterialTheme.typography.labelMedium)
         items.forEach { item ->
             ElevatedCard(onClick = { selectedId = if (selectedId == item.id) null else item.id; saveMessage = null }, modifier = Modifier.fillMaxWidth()) {
@@ -62,10 +69,51 @@ fun WobLibraryPanel(library: WobLibrary) {
                     Text("WoB #${item.id} · ${item.event}", color = LibraryPlum, fontWeight = FontWeight.SemiBold)
                     if (item.date.isNotBlank()) Text(item.date, style = MaterialTheme.typography.labelSmall)
                     if (item.myTags.isNotBlank()) Text("My tags: ${item.myTags}", style = MaterialTheme.typography.bodySmall)
+                    if (item.needsReview || item.needsExport) Text(
+                        listOfNotNull(if (item.needsReview) "Needs review" else null, if (item.needsExport) "Needs export" else null).joinToString(" · "),
+                        color = LibraryPlum, style = MaterialTheme.typography.labelMedium
+                    )
                     if (selectedId == item.id) {
                         HorizontalDivider()
                         Text(Html.fromHtml(item.transcript, Html.FROM_HTML_MODE_COMPACT).toString(), color = LibraryInk)
                         if (item.sourceTags.isNotBlank()) Text("Source tags: ${item.sourceTags}", color = LibraryPlum)
+                        Text("My workflow", color = LibraryPlum, fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(checked = item.needsReview, onCheckedChange = { checked ->
+                                try {
+                                    if (library.saveFlags(item.id, checked, item.needsExport)) {
+                                        refresh++
+                                        saveSucceeded = true
+                                        saveMessage = "✓ Workflow status saved."
+                                    } else {
+                                        saveSucceeded = false
+                                        saveMessage = "Could not save workflow status."
+                                    }
+                                } catch (e: Exception) {
+                                    saveSucceeded = false
+                                    saveMessage = "Could not save workflow status."
+                                }
+                            })
+                            Text("Needs review", color = LibraryInk)
+                        }
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(checked = item.needsExport, onCheckedChange = { checked ->
+                                try {
+                                    if (library.saveFlags(item.id, item.needsReview, checked)) {
+                                        refresh++
+                                        saveSucceeded = true
+                                        saveMessage = "✓ Workflow status saved."
+                                    } else {
+                                        saveSucceeded = false
+                                        saveMessage = "Could not save workflow status."
+                                    }
+                                } catch (e: Exception) {
+                                    saveSucceeded = false
+                                    saveMessage = "Could not save workflow status."
+                                }
+                            })
+                            Text("Needs export", color = LibraryInk)
+                        }
                         OutlinedTextField(value = tags, onValueChange = { tags = it; saveMessage = null }, label = { Text("My tags (comma separated)") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = notes, onValueChange = { notes = it; saveMessage = null }, label = { Text("My notes") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
                         Button(onClick = {
