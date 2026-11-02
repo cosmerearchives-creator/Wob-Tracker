@@ -105,7 +105,7 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                             Text("Original source: ${item.originalUrl}", color = LibraryPlum)
                         }
                         if (item.sourceTags.isNotBlank()) Text("Source tags: ${item.sourceTags}", color = LibraryPlum)
-                        OutlinedTextField(value = tags, onValueChange = { tags = it; saveMessage = null }, label = { Text("My tags (comma separated)") }, modifier = Modifier.fillMaxWidth())
+                        PersonalTagField(value = tags, onValueChange = { tags = it; saveMessage = null }, library = library, revision = libraryRevision + refresh, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = notes, onValueChange = { notes = it; saveMessage = null }, label = { Text("My notes") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
                         Text("Work classification", color = LibraryPlum, fontWeight = FontWeight.SemiBold)
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
