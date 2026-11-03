@@ -77,7 +77,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                     Text("Junk", color = ReviewInk)
                 }
             }
-            if (!export && !junk) Text("Select Needs export or Junk before moving on.", color = Color(0xFFBC3E42), style = MaterialTheme.typography.bodySmall)
+            if (!export && !junk) Text("Select Needs export or Junk to save; you can always skip.", color = Color(0xFFBC3E42), style = MaterialTheme.typography.bodySmall)
             Button(enabled = export || junk, onClick = {
                 try {
                     if (library.completeReview(current.id, tags, notes, export, cosmere, extended, junk)) {
@@ -102,14 +102,14 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                     } else message = "Could not save draft."
                 } catch (e: Exception) { message = "Could not save draft." }
             }) { Text("Save without reviewing & next") }
-            OutlinedButton(enabled = export || junk, onClick = {
+            OutlinedButton(onClick = {
                 passedIds = passedIds + current.id
                 localRefresh++
                 message = ""
                 onNext()
             }) { Text("Skip without saving") }
             if (message.isNotBlank()) Text(message, color = if (message.startsWith("✓")) Color(0xFF386D52) else Color(0xFFBC3E42))
-            Text("Choose Needs export or Junk before moving forward. Mark reviewed completes the entry; Junk goes to its own library section. Save & next keeps Needs export entries pending; Skip discards all unsaved changes and leaves the entry pending.", style = MaterialTheme.typography.bodySmall, color = ReviewInk)
+            Text("Choose Needs export or Junk to save an entry, or skip without making a selection. Mark reviewed completes the entry; Junk goes to its own library section. Save & next keeps Needs export entries pending; Skip discards all unsaved changes and leaves the entry pending.", style = MaterialTheme.typography.bodySmall, color = ReviewInk)
         }
     }
 }
