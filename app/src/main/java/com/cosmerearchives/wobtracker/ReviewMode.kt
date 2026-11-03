@@ -89,7 +89,9 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                 sourceUrl = sourceLink,
                 onSourceUrlChange = { sourceLink = it },
                 onSaveSourceUrl = {
-                    message = if (library.saveOriginalUrl(current.id, sourceLink)) "✓ Original source link saved." else "Enter a valid http(s) source URL."
+                    val saved = sourceLink.isNotBlank() && library.saveOriginalUrl(current.id, sourceLink)
+                    message = if (saved) "✓ Original source link saved." else "Enter a valid http(s) source URL."
+                    saved
                 }
             )
             SourceFootnote(library, current, onChanged)
