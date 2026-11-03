@@ -18,7 +18,13 @@ import androidx.compose.ui.unit.dp
 fun readableTranscript(raw: String): String = Html.fromHtml(raw, Html.FROM_HTML_MODE_COMPACT).toString()
 
 @Composable
-fun WobHighlightEditor(library: WobLibrary, entry: SavedWob) {
+fun WobHighlightEditor(
+    library: WobLibrary,
+    entry: SavedWob,
+    sourceUrl: String? = null,
+    onSourceUrlChange: (String) -> Unit = {},
+    onSaveSourceUrl: () -> Unit = {}
+) {
     var revision by remember(entry.id) { mutableIntStateOf(0) }
     val marks = remember(entry.id, revision) { library.highlights(entry.id) }
     val transcript = remember(entry.id, entry.transcript) { readableTranscript(entry.transcript) }
@@ -34,7 +40,7 @@ fun WobHighlightEditor(library: WobLibrary, entry: SavedWob) {
             }
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Transcript — select text to highlight", style = MaterialTheme.typography.titleSmall)
         BasicTextField(
             value = TextFieldValue(styled, selection),
@@ -43,7 +49,7 @@ fun WobHighlightEditor(library: WobLibrary, entry: SavedWob) {
             modifier = Modifier.fillMaxWidth(),
             textStyle = TextStyle(color = Color(0xFF37343C))
         )
-        OutlinedButton(onClick = {
+        val saveHighlight: () -> Unit = {
             val a = selection.min.coerceIn(0, transcript.length)
             val b = selection.max.coerceIn(0, transcript.length)
             if (a == b) {
@@ -56,7 +62,27 @@ fun WobHighlightEditor(library: WobLibrary, entry: SavedWob) {
                     } else message = "This passage may already be highlighted."
                 } catch (e: Exception) { message = "Couldn't save highlight." }
             }
-        }) { Text("Highlight selection") }
+        }
+        if (sourceUrl != null) {
+            Spacer(Modifier.height(4.dp))
+            OutlinedTextField(
+                value = sourceUrl,
+                onValueChange = onSourceUrlChange,
+                label = { Text("Original external source URL (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = saveHighlight, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)) {
+                    Text("Highlight selection", style = MaterialTheme.typography.labelMedium)
+                }
+                OutlinedButton(onClick = onSaveSourceUrl, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)) {
+                    Text("Save source link", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        } else {
+            OutlinedButton(onClick = saveHighlight) { Text("Highlight selection") }
+        }
         if (message.isNotEmpty()) Text(message, color = Color(0xFF6B5C87))
         if (marks.isNotEmpty()) {
             Text("Saved highlights", style = MaterialTheme.typography.titleSmall)
