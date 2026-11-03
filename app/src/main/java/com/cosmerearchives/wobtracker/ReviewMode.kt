@@ -25,6 +25,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
     var cosmere by remember(current?.id, localRefresh) { mutableStateOf(current?.cosmere ?: false) }
     var extended by remember(current?.id, localRefresh) { mutableStateOf(current?.extendedWorks ?: false) }
     var export by remember(current?.id, localRefresh) { mutableStateOf(current?.needsExport ?: false) }
+    var junk by remember(current?.id, localRefresh) { mutableStateOf(current?.junk ?: false) }
     var message by remember { mutableStateOf("") }
     var sourceLink by remember(current?.id) { mutableStateOf(current?.originalUrl.orEmpty()) }
     var dirty by remember(current?.id, localRefresh) { mutableStateOf(false) }
@@ -66,15 +67,22 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                 Text("Extended Works", color = ReviewInk)
             }
             Text("Workflow", color = ReviewPlum, fontWeight = FontWeight.SemiBold)
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Checkbox(checked = export, onCheckedChange = { export = it; dirty = true; message = "" })
-                Text("Needs export", color = ReviewInk)
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Checkbox(checked = export, onCheckedChange = { export = it; if (it) junk = false; dirty = true; message = "" })
+                    Text("Needs export", color = ReviewInk)
+                }
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Checkbox(checked = junk, onCheckedChange = { junk = it; if (it) export = false; dirty = true; message = "" })
+                    Text("Junk", color = ReviewInk)
+                }
             }
-            Button(onClick = {
+            if (!export && !junk) Text("Select Needs export or Junk before moving on.", color = Color(0xFFBC3E42), style = MaterialTheme.typography.bodySmall)
+            Button(enabled = export || junk, onClick = {
                 try {
-                    if (library.completeReview(current.id, tags, notes, export, cosmere, extended)) {
+                    if (library.completeReview(current.id, tags, notes, export, cosmere, extended, junk)) {
                         passedIds = passedIds + current.id
-                        message = "✓ Reviewed and saved."
+                        message = if (junk) "✓ Moved to Junk." else "✓ Reviewed and saved."
                         localRefresh++
                         onChanged()
                         onNext()
@@ -83,25 +91,25 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
             }, colors = ButtonDefaults.buttonColors(containerColor = ReviewPlum)) {
                 Text("Mark reviewed & next")
             }
-            OutlinedButton(onClick = {
+            OutlinedButton(enabled = export || junk, onClick = {
                 try {
-                    if (library.saveReviewDraft(current.id, tags, notes, export, cosmere, extended)) {
+                    if (library.saveReviewDraft(current.id, tags, notes, export, cosmere, extended, junk)) {
                         passedIds = passedIds + current.id
-                        message = "✓ Draft saved. Entry remains in the review queue."
+                        message = if (junk) "✓ Moved to Junk." else "✓ Draft saved. Entry remains in the review queue."
                         localRefresh++
                         onChanged()
                         onNext()
                     } else message = "Could not save draft."
                 } catch (e: Exception) { message = "Could not save draft." }
             }) { Text("Save without reviewing & next") }
-            OutlinedButton(onClick = {
+            OutlinedButton(enabled = export || junk, onClick = {
                 passedIds = passedIds + current.id
                 localRefresh++
                 message = ""
                 onNext()
             }) { Text("Skip without saving") }
             if (message.isNotBlank()) Text(message, color = if (message.startsWith("✓")) Color(0xFF386D52) else Color(0xFFBC3E42))
-            Text("Mark reviewed removes an entry from the queue. Save & next or Skip moves forward for this pass but leaves it pending. Skipping discards unsaved notes, tags, classification and export changes.", style = MaterialTheme.typography.bodySmall, color = ReviewInk)
+            Text("Choose Needs export or Junk before moving forward. Mark reviewed completes the entry; Junk goes to its own library section. Save & next keeps Needs export entries pending; Skip discards all unsaved changes and leaves the entry pending.", style = MaterialTheme.typography.bodySmall, color = ReviewInk)
         }
     }
 }
