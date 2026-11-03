@@ -8,6 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -17,6 +18,7 @@ private val LibraryInk = Color(0xFF37343C)
 
 @Composable
 fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
+    val uriHandler = LocalUriHandler.current
     var query by remember { mutableStateOf("") }
     var librarySection by remember { mutableStateOf("Needs Review") }
     var categoryFilter by remember { mutableStateOf("All works") }
@@ -73,6 +75,9 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                     )
                     if (selectedId == item.id) {
                         HorizontalDivider()
+                        TextButton(onClick = {
+                            uriHandler.openUri("https://wob.coppermind.net/entry/${item.id}/")
+                        }) { Text("View on Arcanum ↗") }
                         OutlinedButton(onClick = {
                             if (library.setArchived(item.id, !item.archived)) {
                                 selectedId = null
