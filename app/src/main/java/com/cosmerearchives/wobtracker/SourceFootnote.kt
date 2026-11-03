@@ -1,7 +1,5 @@
 package com.cosmerearchives.wobtracker
 
-import android.os.Handler
-import android.os.Looper
 import android.text.Html
 import android.text.Spanned
 import android.text.style.URLSpan
@@ -20,7 +18,8 @@ import androidx.compose.ui.unit.dp
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.concurrent.thread
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val FootnotePlum = Color(0xFF6B5C87)
 
@@ -31,10 +30,43 @@ private val FootnotePlum = Color(0xFF6B5C87)
 @Composable
 fun SourceFootnote(library: WobLibrary, entry: SavedWob, onChanged: () -> Unit) {
     var note by remember(entry.id, entry.sourceNote) { mutableStateOf(entry.sourceNote) }
+    var checked by remember(entry.id) { mutableStateOf(false) }
     var loading by remember(entry.id) { mutableStateOf(false) }
-    var status by remember(entry.id) { mutableStateOf("") }
     val uriHandler = LocalUriHandler.current
-    val main = remember { Handler(Looper.getMainLooper()) }
+
+    // Existing WoBs were imported before source footnotes were stored. Fetch only
+    // when a particular WoB is opened, never in a bulk loop or on the UI thread.
+    LaunchedEffect(entry.id, entry.sourceNote) {
+        if (note.isNotBlank() || checked) return@LaunchedEffect
+        checked = true
+        loading = true
+        val retrieved = withContext(Dispatchers.IO) {
+            try {
+                val connection = URL("https://wob.coppermind.net/api/entry/${entry.id}/").openConnection() as HttpURLConnection
+                connection.connectTimeout = 15000
+                connection.readTimeout = 20000
+                connection.setRequestProperty("Accept", "application/json")
+                connection.setRequestProperty("User-Agent", "WoB-Tracker/0.1 (automatic source footnote lookup)")
+                try {
+                    if (connection.responseCode != 200) error("HTTP ${connection.responseCode}")
+                    val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                    val footnote = json.optString("note").takeUnless { it == "null" }.orEmpty()
+                    // Only the source note column changes; user tags, reviews, and highlights stay intact.
+                    if (footnote.isNotBlank()) library.saveSourceNote(entry.id, footnote)
+                    footnote
+                } finally {
+                    connection.disconnect()
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
+        loading = false
+        if (!retrieved.isNullOrBlank()) {
+            note = retrieved
+            onChanged()
+        }
+    }
 
     if (note.isNotBlank()) {
         val parsed = remember(note) { Html.fromHtml(note, Html.FROM_HTML_MODE_COMPACT) }
@@ -69,35 +101,7 @@ fun SourceFootnote(library: WobLibrary, entry: SavedWob, onChanged: () -> Unit) 
                 }
             }
         )
-    } else {
-        TextButton(enabled = !loading, onClick = {
-            loading = true
-            status = ""
-            val id = entry.id
-            thread {
-                var retrieved: String? = null
-                val outcome = try {
-                    val connection = URL("https://wob.coppermind.net/api/entry/$id/").openConnection() as HttpURLConnection
-                    connection.connectTimeout = 15000
-                    connection.readTimeout = 20000
-                    connection.setRequestProperty("Accept", "application/json")
-                    connection.setRequestProperty("User-Agent", "WoB-Tracker/0.1 (source footnote refresh)")
-                    try {
-                        if (connection.responseCode != 200) error("HTTP ${connection.responseCode}")
-                        val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-                        retrieved = json.optString("note").takeUnless { it == "null" }.orEmpty()
-                        if (!library.saveSourceNote(id, retrieved.orEmpty())) error("Could not store footnote")
-                        if (retrieved.isNullOrBlank()) "No footnote for this WoB on Arcanum." else "Footnote retrieved."
-                    } finally { connection.disconnect() }
-                } catch (e: Exception) { "Couldn't fetch footnote. Check your connection and retry." }
-                main.post {
-                    note = retrieved ?: note
-                    status = outcome
-                    loading = false
-                    if (retrieved != null) onChanged()
-                }
-            }
-        }) { Text(if (loading) "Checking Arcanum…" else "Check for Arcanum footnote") }
+    } else if (loading) {
+        Text("Checking for source footnote…", style = MaterialTheme.typography.bodySmall, color = FootnotePlum)
     }
-    if (status.isNotBlank() && note.isBlank()) Text(status, style = MaterialTheme.typography.bodySmall, color = FootnotePlum)
 }
