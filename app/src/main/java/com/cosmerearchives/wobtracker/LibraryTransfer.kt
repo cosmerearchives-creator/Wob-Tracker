@@ -13,7 +13,7 @@ import java.util.zip.ZipOutputStream
 
 /** Versioned, portable ZIP containing JSON, not the live SQLite WAL database. */
 object LibraryTransfer {
-    private val columns = arrayOf("id","event","date","transcript","source_tags","my_tags","my_notes","needs_review","needs_export","cosmere","extended_works","event_id","entry_date","modified_date","original_url","archived","junk")
+    private val columns = arrayOf("id","event","date","transcript","source_tags","my_tags","my_notes","needs_review","needs_export","cosmere","extended_works","event_id","entry_date","modified_date","original_url","archived","junk","source_note"
     private val personal = setOf("my_tags","my_notes","needs_review","needs_export","cosmere","extended_works","original_url","archived","junk")
     private val numbers = setOf("id","needs_review","needs_export","cosmere","extended_works","event_id","archived","junk")
     private fun digest(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
@@ -85,7 +85,7 @@ object LibraryTransfer {
         require(arr.length() == m.getInt("count")) { "Entry count mismatch" }
         for (i in 0 until arr.length()) {
             val item = arr.getJSONObject(i)
-            for (col in columns.filterNot { it == "junk" }) require(item.has(col)) { "Missing field $col" }
+            for (col in columns.filterNot { it == "junk" || it == "source_note" }) require(item.has(col)) { "Missing field $col" }
             require(item.getInt("id") > 0 && item.has("highlights")) { "Invalid record" }
         }
         return arr
@@ -109,7 +109,7 @@ object LibraryTransfer {
                 val values = ContentValues()
                 columns.forEach { col ->
                     if (numbers.contains(col)) values.put(col,if (col == "junk") obj.optInt(col,0) else obj.getInt(col))
-                    else values.put(col,obj.getString(col))
+                    else values.put(col,if (col == "source_note") obj.optString(col,"") else obj.getString(col))
                 }
                 require(db.insertOrThrow("entries",null,values) != -1L)
                 added++
