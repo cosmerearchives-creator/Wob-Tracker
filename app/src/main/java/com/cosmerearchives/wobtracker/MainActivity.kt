@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
+import kotlin.concurrent.thread
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +42,8 @@ class MainActivity : ComponentActivity() {
             var showWob by remember { mutableStateOf(false) }
             var libraryRevision by remember { mutableIntStateOf(0) }
             var selectedTab by remember { mutableStateOf("Library") }
+            var sampleImporting by remember { mutableStateOf(false) }
+            var sampleImportStatus by remember { mutableStateOf("") }
             val contentScrollState = rememberScrollState()
             val scrollScope = rememberCoroutineScope()
 
@@ -95,6 +98,28 @@ class MainActivity : ComponentActivity() {
                                 Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                                         ArchiveBrowser(library) { libraryRevision++ }
+                                    }
+                                }
+                                Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text("Sample import", color = Ink, style = MaterialTheme.typography.titleMedium)
+                                        Button(enabled = !sampleImporting, onClick = {
+                                            sampleImporting = true
+                                            thread {
+                                                val result = try {
+                                                    val imported = library.importSamples()
+                                                    "Sample import finished: $imported new WoBs."
+                                                } catch (e: Exception) {
+                                                    "Sample import failed: ${e.javaClass.simpleName}."
+                                                }
+                                                runOnUiThread {
+                                                    sampleImportStatus = result
+                                                    sampleImporting = false
+                                                    libraryRevision++
+                                                }
+                                            }
+                                        }) { Text(if (sampleImporting) "Importing…" else "Import 3 sample WoBs") }
+                                        if (sampleImportStatus.isNotBlank()) Text(sampleImportStatus, color = Plum)
                                     }
                                 }
                                 Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
