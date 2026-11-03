@@ -8,11 +8,11 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = true, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false, val eventId: Int = 0, val entryDate: String = "", val modifiedDate: String = "", val originalUrl: String = "", val archived: Boolean = false, val junk: Boolean = false)
+data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = true, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false, val eventId: Int = 0, val entryDate: String = "", val modifiedDate: String = "", val originalUrl: String = "", val archived: Boolean = false, val junk: Boolean = false, val sourceNote: String = "")
 
-class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 7) {
+class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 8) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 1, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0, event_id INTEGER NOT NULL DEFAULT 0, entry_date TEXT NOT NULL DEFAULT '', modified_date TEXT NOT NULL DEFAULT '', original_url TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0, junk INTEGER NOT NULL DEFAULT 0)")
+        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 1, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0, event_id INTEGER NOT NULL DEFAULT 0, entry_date TEXT NOT NULL DEFAULT '', modified_date TEXT NOT NULL DEFAULT '', original_url TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0, junk INTEGER NOT NULL DEFAULT 0, source_note TEXT NOT NULL DEFAULT '')")
         db.execSQL("CREATE TABLE highlights (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, quote TEXT NOT NULL, UNIQUE(entry_id,start_offset,end_offset))")
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -35,6 +35,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         }
         if (oldVersion < 6) db.execSQL("ALTER TABLE entries ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
         if (oldVersion < 7) db.execSQL("ALTER TABLE entries ADD COLUMN junk INTEGER NOT NULL DEFAULT 0")
+        if (oldVersion < 8) db.execSQL("ALTER TABLE entries ADD COLUMN source_note TEXT NOT NULL DEFAULT ''")
         db.execSQL("CREATE TABLE IF NOT EXISTS highlights (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, quote TEXT NOT NULL, UNIQUE(entry_id,start_offset,end_offset))")
     }
 
@@ -59,11 +60,11 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
             else -> " AND archived=0 AND junk=0"
         }
         readableDatabase.rawQuery(
-            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url,archived,junk FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$extra$categoryClause$archiveClause ORDER BY id DESC",
+            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url,archived,junk,source_note FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$extra$categoryClause$archiveClause ORDER BY id DESC",
             arrayOf(filter, filter, filter, filter)
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                result.add(SavedWob(cursor.getInt(0),cursor.getString(1),cursor.getString(2),cursor.getString(3),cursor.getString(4),cursor.getString(5),cursor.getString(6),cursor.getInt(7) != 0,cursor.getInt(8) != 0,cursor.getInt(9) != 0,cursor.getInt(10) != 0,cursor.getInt(11),cursor.getString(12),cursor.getString(13),cursor.getString(14),cursor.getInt(15) != 0,cursor.getInt(16) != 0))
+                result.add(SavedWob(cursor.getInt(0),cursor.getString(1),cursor.getString(2),cursor.getString(3),cursor.getString(4),cursor.getString(5),cursor.getString(6),cursor.getInt(7) != 0,cursor.getInt(8) != 0,cursor.getInt(9) != 0,cursor.getInt(10) != 0,cursor.getInt(11),cursor.getString(12),cursor.getString(13),cursor.getString(14),cursor.getInt(15) != 0,cursor.getInt(16) != 0,cursor.getString(17)))
             }
         }
         return result
@@ -78,6 +79,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
             put("entry_date", entry.entryDate)
             put("modified_date", entry.modifiedDate)
             put("original_url", entry.originalUrl)
+            put("source_note", entry.sourceNote)
         }
         // CONFLICT_IGNORE guarantees a re-import never replaces personal edits.
         writableDatabase.insertWithOnConflict("entries", null, values, SQLiteDatabase.CONFLICT_IGNORE)
@@ -102,6 +104,11 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
 
     fun deleteHighlight(id: Long): Boolean =
         writableDatabase.delete("highlights", "id=?", arrayOf(id.toString())) == 1
+
+    /** Change only the original Arcanum footnote; keep personal data and review flags intact. */
+    fun saveSourceNote(id: Int, note: String): Boolean =
+        writableDatabase.update("entries", ContentValues().apply { put("source_note", note) },
+            "id=?", arrayOf(id.toString())) == 1
 
     fun saveOriginalUrl(id: Int, url: String): Boolean {
         val normalized = url.trim()
@@ -239,7 +246,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
                 }
                 val tags = json.optJSONArray("tags")
                 val sourceTags = if (tags == null) "" else (0 until tags.length()).joinToString(", ") { tags.getString(it) }
-                saveSource(SavedWob(id,json.optString("event_name"),json.optString("event_date"),transcript,sourceTags,"","",eventId=json.optInt("event"),entryDate=json.optString("date").takeUnless { it == "null" }.orEmpty(),modifiedDate=json.optString("modified_date")))
+                saveSource(SavedWob(id,json.optString("event_name"),json.optString("event_date"),transcript,sourceTags,"","",eventId=json.optInt("event"),entryDate=json.optString("date").takeUnless { it == "null" }.orEmpty(),modifiedDate=json.optString("modified_date"),sourceNote=json.optString("note").takeUnless { it == "null" }.orEmpty()))
                 imported++
             } finally { connection.disconnect() }
         }
