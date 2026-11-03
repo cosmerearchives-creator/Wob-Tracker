@@ -91,6 +91,7 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                         if (item.originalUrl.isNotBlank()) {
                             Text("Original source: ${item.originalUrl}", color = LibraryPlum)
                         }
+                        SourceFootnote(library, item) { refresh++ }
                         SourceTagChips(item.sourceTags, tags) { tag -> tags = appendPersonalTag(tags, tag); saveMessage = null }
                         PersonalTagField(value = tags, onValueChange = { tags = it; saveMessage = null }, library = library, revision = libraryRevision + refresh, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = notes, onValueChange = { notes = it; saveMessage = null }, label = { Text("My notes") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
