@@ -8,6 +8,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
+import java.text.NumberFormat
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -19,8 +21,19 @@ private val ReviewDivider = Color(0xFF8872A8)
 @Composable
 fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit, onNext: () -> Unit) {
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    val checkpoint = remember(context) { context.getSharedPreferences("archive_import", android.content.Context.MODE_PRIVATE) }
+    var archiveTotal by remember { mutableIntStateOf(checkpoint.getInt("reported_total", 0)) }
     var localRefresh by remember { mutableIntStateOf(0) }
     val pending = remember(libraryRevision, localRefresh) { library.entries(filterBy = "Needs review").sortedBy { it.id } }
+    val savedCount = remember(libraryRevision, localRefresh) { library.savedEntryCount() }
+    val overallRemaining = if (archiveTotal > 0) {
+        (archiveTotal - (savedCount - pending.size)).coerceAtLeast(pending.size)
+    } else null
+    val countFormat = remember { NumberFormat.getIntegerInstance() }
+    LaunchedEffect(libraryRevision, localRefresh) {
+        archiveTotal = checkpoint.getInt("reported_total", 0)
+    }
     var passedIds by remember { mutableStateOf(setOf<Int>()) }
     val current = pending.firstOrNull { it.id !in passedIds }
     var tags by remember(current?.id, localRefresh) { mutableStateOf(current?.myTags.orEmpty()) }
@@ -41,7 +54,17 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text("Review Mode", style = MaterialTheme.typography.titleLarge, color = ReviewInk, fontWeight = FontWeight.Bold)
-            Text("${pending.size} need review", color = ReviewPlum, style = MaterialTheme.typography.labelMedium)
+            Text("${pending.size} imported", color = ReviewPlum, style = MaterialTheme.typography.labelMedium)
+        }
+        if (overallRemaining != null) {
+            Text(
+                "~${countFormat.format(overallRemaining)} remaining across Arcanum · " +
+                    "${countFormat.format((archiveTotal - savedCount).coerceAtLeast(0))} not yet imported",
+                color = ReviewPlum,
+                style = MaterialTheme.typography.bodySmall
+            )
+        } else {
+            Text("Open Tools → Browse Arcanum to load the overall archive total.", color = ReviewPlum, style = MaterialTheme.typography.bodySmall)
         }
         if (current == null) {
             if (pending.isEmpty()) {
