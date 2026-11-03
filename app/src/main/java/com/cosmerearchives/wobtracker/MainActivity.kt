@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
             val scrollScope = rememberCoroutineScope()
 
             MaterialTheme(colorScheme = lightColorScheme(primary = Plum, background = Background, surface = Color.White, onBackground = Ink)) {
-                Column(Modifier.fillMaxSize().background(Background)) {
+                Column(Modifier.fillMaxSize().background(Background).imePadding()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 20.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     Column(
-                        modifier = Modifier.fillMaxSize().verticalScroll(contentScrollState).padding(horizontal = 10.dp, vertical = 16.dp),
+                        modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(contentScrollState).padding(start = 10.dp, end = 10.dp, top = 16.dp, bottom = 32.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         when (selectedTab) {
