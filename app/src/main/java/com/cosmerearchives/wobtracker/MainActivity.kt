@@ -76,11 +76,6 @@ class MainActivity : ComponentActivity() {
                         when (selectedTab) {
                             "Library" -> {
                                 Text("Your personal Word of Brandon archive", color = Plum)
-                                Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
-                                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                                        ArchiveBrowser(library) { libraryRevision++ }
-                                    }
-                                }
                                 Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                                         WobLibraryPanel(library, libraryRevision)
@@ -97,6 +92,11 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             else -> {
+                                Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                        ArchiveBrowser(library) { libraryRevision++ }
+                                    }
+                                }
                                 Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                                         BackupTools(library) { libraryRevision++ }
