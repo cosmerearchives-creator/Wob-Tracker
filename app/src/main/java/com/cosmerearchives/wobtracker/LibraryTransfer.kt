@@ -13,7 +13,7 @@ import java.util.zip.ZipOutputStream
 
 /** Versioned, portable ZIP containing JSON, not the live SQLite WAL database. */
 object LibraryTransfer {
-    private val columns = arrayOf("id","event","date","transcript","source_tags","my_tags","my_notes","needs_review","needs_export","cosmere","extended_works","event_id","entry_date","modified_date","original_url","archived","junk","source_note"
+    private val columns = arrayOf("id","event","date","transcript","source_tags","my_tags","my_notes","needs_review","needs_export","cosmere","extended_works","event_id","entry_date","modified_date","original_url","archived","junk","source_note")
     private val personal = setOf("my_tags","my_notes","needs_review","needs_export","cosmere","extended_works","original_url","archived","junk")
     private val numbers = setOf("id","needs_review","needs_export","cosmere","extended_works","event_id","archived","junk")
     private fun digest(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
