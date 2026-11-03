@@ -8,11 +8,11 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = true, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false, val eventId: Int = 0, val entryDate: String = "", val modifiedDate: String = "", val originalUrl: String = "", val archived: Boolean = false)
+data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = true, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false, val eventId: Int = 0, val entryDate: String = "", val modifiedDate: String = "", val originalUrl: String = "", val archived: Boolean = false, val junk: Boolean = false)
 
-class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 6) {
+class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 7) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 1, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0, event_id INTEGER NOT NULL DEFAULT 0, entry_date TEXT NOT NULL DEFAULT '', modified_date TEXT NOT NULL DEFAULT '', original_url TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0)")
+        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 1, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0, event_id INTEGER NOT NULL DEFAULT 0, entry_date TEXT NOT NULL DEFAULT '', modified_date TEXT NOT NULL DEFAULT '', original_url TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0, junk INTEGER NOT NULL DEFAULT 0)")
         db.execSQL("CREATE TABLE highlights (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, quote TEXT NOT NULL, UNIQUE(entry_id,start_offset,end_offset))")
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -34,6 +34,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
             db.execSQL("ALTER TABLE entries ADD COLUMN original_url TEXT NOT NULL DEFAULT ''")
         }
         if (oldVersion < 6) db.execSQL("ALTER TABLE entries ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
+        if (oldVersion < 7) db.execSQL("ALTER TABLE entries ADD COLUMN junk INTEGER NOT NULL DEFAULT 0")
         db.execSQL("CREATE TABLE IF NOT EXISTS highlights (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, quote TEXT NOT NULL, UNIQUE(entry_id,start_offset,end_offset))")
     }
 
@@ -41,9 +42,9 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         val result = mutableListOf<SavedWob>()
         val filter = "%${query.trim()}%"
         val extra = when (filterBy) {
-            "Needs review" -> " AND needs_review=1"
-            "Needs export" -> " AND needs_export=1"
-            "Both" -> " AND needs_review=1 AND needs_export=1"
+            "Needs review" -> " AND needs_review=1 AND junk=0"
+            "Needs export" -> " AND needs_export=1 AND junk=0"
+            "Both" -> " AND needs_review=1 AND needs_export=1 AND junk=0"
             else -> ""
         }
         val categoryClause = when (category) {
@@ -52,16 +53,17 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
             else -> ""
         }
         val archiveClause = when (archiveView) {
-            "Archived" -> " AND archived=1"
+            "Archived" -> " AND archived=1 AND junk=0"
+            "Junk" -> " AND junk=1"
             "All" -> ""
-            else -> " AND archived=0"
+            else -> " AND archived=0 AND junk=0"
         }
         readableDatabase.rawQuery(
-            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url,archived FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$extra$categoryClause$archiveClause ORDER BY id DESC",
+            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url,archived,junk FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$extra$categoryClause$archiveClause ORDER BY id DESC",
             arrayOf(filter, filter, filter, filter)
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                result.add(SavedWob(cursor.getInt(0),cursor.getString(1),cursor.getString(2),cursor.getString(3),cursor.getString(4),cursor.getString(5),cursor.getString(6),cursor.getInt(7) != 0,cursor.getInt(8) != 0,cursor.getInt(9) != 0,cursor.getInt(10) != 0,cursor.getInt(11),cursor.getString(12),cursor.getString(13),cursor.getString(14),cursor.getInt(15) != 0))
+                result.add(SavedWob(cursor.getInt(0),cursor.getString(1),cursor.getString(2),cursor.getString(3),cursor.getString(4),cursor.getString(5),cursor.getString(6),cursor.getInt(7) != 0,cursor.getInt(8) != 0,cursor.getInt(9) != 0,cursor.getInt(10) != 0,cursor.getInt(11),cursor.getString(12),cursor.getString(13),cursor.getString(14),cursor.getInt(15) != 0,cursor.getInt(16) != 0))
             }
         }
         return result
@@ -130,6 +132,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         val values = ContentValues().apply {
             put("needs_review", if (needsReview) 1 else 0)
             put("needs_export", if (needsExport) 1 else 0)
+            if (needsExport) put("junk", 0)
         }
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
@@ -142,24 +145,41 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
 
+    /** Junk remains local and recoverable, but cannot be exported or reviewed. */
+    fun setJunk(id: Int, junk: Boolean): Boolean {
+        val values = ContentValues().apply {
+            put("junk", if (junk) 1 else 0)
+            if (junk) {
+                put("needs_review", 0)
+                put("needs_export", 0)
+            } else {
+                put("needs_review", 1)
+            }
+        }
+        return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
+    }
+
     /** Atomically save annotations and finish review, so a failed save never advances the queue. */
-    fun completeReview(id: Int, tags: String, notes: String, needsExport: Boolean, cosmere: Boolean, extendedWorks: Boolean): Boolean {
+    fun completeReview(id: Int, tags: String, notes: String, needsExport: Boolean, cosmere: Boolean, extendedWorks: Boolean, junk: Boolean = false): Boolean {
         val values = ContentValues().apply {
             put("my_tags", tags)
             put("my_notes", notes)
             put("needs_review", 0)
-            put("needs_export", if (needsExport) 1 else 0)
+            put("needs_export", if (needsExport && !junk) 1 else 0)
+            put("junk", if (junk) 1 else 0)
             put("cosmere", if (cosmere) 1 else 0)
             put("extended_works", if (extendedWorks) 1 else 0)
         }
         return writableDatabase.update("entries", values, "id=? AND needs_review=1", arrayOf(id.toString())) == 1
     }
 
-    fun saveReviewDraft(id: Int, tags: String, notes: String, needsExport: Boolean, cosmere: Boolean, extendedWorks: Boolean): Boolean {
+    fun saveReviewDraft(id: Int, tags: String, notes: String, needsExport: Boolean, cosmere: Boolean, extendedWorks: Boolean, junk: Boolean = false): Boolean {
         val values = ContentValues().apply {
             put("my_tags", tags)
             put("my_notes", notes)
-            put("needs_export", if (needsExport) 1 else 0)
+            put("needs_export", if (needsExport && !junk) 1 else 0)
+            put("junk", if (junk) 1 else 0)
+            if (junk) put("needs_review", 0)
             put("cosmere", if (cosmere) 1 else 0)
             put("extended_works", if (extendedWorks) 1 else 0)
         }
