@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlin.concurrent.thread
 
 private val LibraryPlum = Color(0xFF6B5C87)
 private val LibraryInk = Color(0xFF37343C)
@@ -19,16 +18,22 @@ private val LibraryInk = Color(0xFF37343C)
 @Composable
 fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
     var query by remember { mutableStateOf("") }
-    var filterBy by remember { mutableStateOf("All") }
+    var librarySection by remember { mutableStateOf("Needs Review") }
     var categoryFilter by remember { mutableStateOf("All works") }
-    var archiveView by remember { mutableStateOf("Active") }
     var refresh by remember { mutableIntStateOf(0) }
-    var importing by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("Import three sample WoBs to begin your offline library.") }
     var selectedId by remember { mutableStateOf<Int?>(null) }
     var saveMessage by remember { mutableStateOf<String?>(null) }
     var saveSucceeded by remember { mutableStateOf(false) }
-    val items = remember(query,filterBy,categoryFilter,archiveView,refresh,libraryRevision) { library.entries(query, filterBy, categoryFilter, archiveView) }
+    val allItems = remember(query,categoryFilter,refresh,libraryRevision) { library.entries(query, "All", categoryFilter, "All") }
+    val items = remember(allItems, librarySection) {
+        allItems.filter { item ->
+            when (librarySection) {
+                "Needs Review" -> !item.junk && item.needsReview
+                "Reviewed" -> !item.junk && !item.needsReview
+                else -> item.junk
+            }
+        }
+    }
     val current = items.firstOrNull { it.id == selectedId }
     var tags by remember(current?.id, refresh) { mutableStateOf(current?.myTags ?: "") }
     var notes by remember(current?.id, refresh) { mutableStateOf(current?.myNotes ?: "") }
@@ -36,45 +41,22 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("My WoB Library", color = LibraryInk, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Saved locally on this device. Original source and your notes are stored separately.", color = LibraryInk)
-        Button(
-            enabled = !importing,
-            onClick = {
-                importing = true
-                status = "Importing three sample WoBs…"
-                thread {
-                    val outcome = try {
-                        val n = library.importSamples()
-                        "Sample import finished ($n entries checked). Available offline."
-                    } catch (e: Exception) {
-                        "Import stopped: ${e.javaClass.simpleName}. Already saved entries remain available."
-                    }
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        status = outcome
-                        refresh++
-                        importing = false
-                    }
-                }
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = LibraryPlum)
-        ) { Text(if (importing) "Importing…" else "Import 3 sample WoBs") }
-        Text(status, color = LibraryPlum, style = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("Search offline library") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState())) {
-            listOf("All", "Needs review", "Needs export", "Both").forEach { filter ->
-                FilterChip(selected = filterBy == filter, onClick = { filterBy = filter }, label = { Text(filter) })
+        TabRow(selectedTabIndex = listOf("Needs Review", "Reviewed", "Junk").indexOf(librarySection)) {
+            listOf("Needs Review", "Reviewed", "Junk").forEach { section ->
+                Tab(selected = librarySection == section, onClick = {
+                    librarySection = section
+                    selectedId = null
+                    saveMessage = null
+                }, text = { Text(section) })
             }
         }
+        OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("Search offline library") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
             listOf("All works", "Cosmere", "Extended Works").forEach { category ->
                 FilterChip(selected = categoryFilter == category, onClick = { categoryFilter = category }, label = { Text(category) })
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-            listOf("Active", "Archived", "Junk", "All").forEach { view ->
-                FilterChip(selected = archiveView == view, onClick = { archiveView = view; selectedId = null }, label = { Text(view) })
-            }
-        }
-        Text("${items.size} saved WoBs shown", color = LibraryInk, style = MaterialTheme.typography.labelMedium)
+        Text("${items.size} ${librarySection.lowercase()} WoBs shown", color = LibraryInk, style = MaterialTheme.typography.labelMedium)
         items.forEach { item ->
             ElevatedCard(onClick = { selectedId = if (selectedId == item.id) null else item.id; saveMessage = null }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
