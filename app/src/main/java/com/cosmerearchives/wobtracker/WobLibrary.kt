@@ -123,6 +123,28 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         return unique.values.sortedWith(String.CASE_INSENSITIVE_ORDER)
     }
 
+    /** Most frequently assigned personal tags (counted once per WoB, case-insensitively). */
+    fun frequentPersonalTags(limit: Int = 5): List<String> {
+        val counts = mutableMapOf<String, Int>()
+        val spellings = mutableMapOf<String, String>()
+        readableDatabase.rawQuery("SELECT my_tags FROM entries WHERE my_tags != ''", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                val uniqueForEntry = mutableSetOf<String>()
+                cursor.getString(0).split(',').forEach { raw ->
+                    val tag = raw.trim()
+                    val key = tag.lowercase(java.util.Locale.ROOT)
+                    if (key.isNotEmpty() && uniqueForEntry.add(key)) {
+                        counts[key] = (counts[key] ?: 0) + 1
+                        spellings.putIfAbsent(key, tag)
+                    }
+                }
+            }
+        }
+        return counts.entries.sortedWith(
+            compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key }
+        ).take(limit.coerceIn(0, 5)).mapNotNull { spellings[it.key] }
+    }
+
     fun savePersonal(id: Int, tags: String, notes: String): Boolean {
         val values = ContentValues().apply { put("my_tags", tags); put("my_notes", notes) }
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
