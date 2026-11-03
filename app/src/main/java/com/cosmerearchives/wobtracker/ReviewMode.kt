@@ -48,7 +48,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
             if (current.entryDate.isNotBlank()) Text("Entry date: ${current.entryDate}", color = ReviewPlum)
             if (current.modifiedDate.isNotBlank()) Text("Source modified: ${current.modifiedDate}", color = ReviewPlum)
             WobHighlightEditor(library, current)
-            if (current.sourceTags.isNotBlank()) Text("Source tags: ${current.sourceTags}", color = ReviewPlum)
+            SourceTagChips(current.sourceTags, tags) { tag -> tags = appendPersonalTag(tags, tag); dirty = true; message = "" }
             OutlinedTextField(value = sourceLink, onValueChange = { sourceLink = it }, label = { Text("Original external source URL (optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             OutlinedButton(onClick = {
                 message = if (library.saveOriginalUrl(current.id, sourceLink)) "✓ Original source link saved." else "Enter a valid http(s) source URL."
