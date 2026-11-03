@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -17,6 +18,7 @@ private val ReviewDivider = Color(0xFF8872A8)
 
 @Composable
 fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit, onNext: () -> Unit) {
+    val uriHandler = LocalUriHandler.current
     var localRefresh by remember { mutableIntStateOf(0) }
     val pending = remember(libraryRevision, localRefresh) { library.entries(filterBy = "Needs review").sortedBy { it.id } }
     var passedIds by remember { mutableStateOf(setOf<Int>()) }
@@ -55,6 +57,10 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (current.date.isNotBlank()) Text(current.date, color = ReviewInk)
+                TextButton(
+                    onClick = { uriHandler.openUri("https://wob.coppermind.net/entry/${current.id}/") },
+                    contentPadding = PaddingValues(horizontal = 6.dp)
+                ) { Text("View on Arcanum ↗", color = ReviewPlum, style = MaterialTheme.typography.labelMedium) }
                 Box {
                     IconButton(onClick = { showSourceDetails = true }) {
                         Text("ⓘ", style = MaterialTheme.typography.titleMedium, color = ReviewPlum)
