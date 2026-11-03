@@ -23,13 +23,14 @@ fun WobHighlightEditor(
     entry: SavedWob,
     sourceUrl: String? = null,
     onSourceUrlChange: (String) -> Unit = {},
-    onSaveSourceUrl: () -> Unit = {}
+    onSaveSourceUrl: () -> Boolean = { false }
 ) {
     var revision by remember(entry.id) { mutableIntStateOf(0) }
     val marks = remember(entry.id, revision) { library.highlights(entry.id) }
     val transcript = remember(entry.id, entry.transcript) { readableTranscript(entry.transcript) }
     var selection by remember(entry.id) { mutableStateOf(TextRange.Zero) }
     var message by remember(entry.id) { mutableStateOf("") }
+    var showSourceUrlField by remember(entry.id) { mutableStateOf(false) }
     val styled = remember(transcript, marks) {
         buildAnnotatedString {
             append(transcript)
@@ -64,20 +65,33 @@ fun WobHighlightEditor(
             }
         }
         if (sourceUrl != null) {
-            Spacer(Modifier.height(4.dp))
-            OutlinedTextField(
-                value = sourceUrl,
-                onValueChange = onSourceUrlChange,
-                label = { Text("Original external source URL (optional)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            if (showSourceUrlField) {
+                Spacer(Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = sourceUrl,
+                    onValueChange = onSourceUrlChange,
+                    label = { Text("Original external source URL") },
+                    placeholder = { Text("https://…") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = saveHighlight, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)) {
                     Text("Highlight selection", style = MaterialTheme.typography.labelMedium)
                 }
-                OutlinedButton(onClick = onSaveSourceUrl, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)) {
-                    Text("Save source link", style = MaterialTheme.typography.labelMedium)
+                OutlinedButton(
+                    onClick = {
+                        if (!showSourceUrlField) {
+                            showSourceUrlField = true
+                        } else if (onSaveSourceUrl()) {
+                            showSourceUrlField = false
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                ) {
+                    Text(if (showSourceUrlField) "Save source link" else "Add source link", style = MaterialTheme.typography.labelMedium)
                 }
             }
         } else {
