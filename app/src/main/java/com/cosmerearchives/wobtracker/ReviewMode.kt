@@ -29,10 +29,17 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
     var message by remember { mutableStateOf("") }
     var sourceLink by remember(current?.id) { mutableStateOf(current?.originalUrl.orEmpty()) }
     var dirty by remember(current?.id, localRefresh) { mutableStateOf(false) }
+    var showSourceDetails by remember(current?.id) { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Review Mode", style = MaterialTheme.typography.titleLarge, color = ReviewInk, fontWeight = FontWeight.Bold)
-        Text("${pending.size} WoBs need review", color = ReviewPlum)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("Review Mode", style = MaterialTheme.typography.titleLarge, color = ReviewInk, fontWeight = FontWeight.Bold)
+            Text("${pending.size} need review", color = ReviewPlum, style = MaterialTheme.typography.labelMedium)
+        }
         if (current == null) {
             if (pending.isEmpty()) {
                 Text("You're caught up! Import more entries to continue reviewing.", color = ReviewInk)
@@ -42,11 +49,32 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
             }
         } else {
             Text("WoB #${current.id} · ${current.event}", color = ReviewPlum, fontWeight = FontWeight.SemiBold)
-            if (current.date.isNotBlank()) Text(current.date, color = ReviewInk)
-            if (current.eventId > 0) Text("Event ID: ${current.eventId}", color = ReviewPlum)
-            if (current.date.isNotBlank()) Text("Event date: ${current.date}", color = ReviewPlum)
-            if (current.entryDate.isNotBlank()) Text("Entry date: ${current.entryDate}", color = ReviewPlum)
-            if (current.modifiedDate.isNotBlank()) Text("Source modified: ${current.modifiedDate}", color = ReviewPlum)
+            Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (current.date.isNotBlank()) Text(current.date, color = ReviewInk)
+                Box {
+                    IconButton(onClick = { showSourceDetails = true }) {
+                        Text("ⓘ", style = MaterialTheme.typography.titleMedium, color = ReviewPlum)
+                    }
+                    DropdownMenu(
+                        expanded = showSourceDetails,
+                        onDismissRequest = { showSourceDetails = false }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("Source details", fontWeight = FontWeight.SemiBold, color = ReviewInk)
+                            if (current.eventId > 0) Text("Event ID: ${current.eventId}", color = ReviewInk)
+                            if (current.date.isNotBlank()) Text("Event date: ${current.date}", color = ReviewInk)
+                            if (current.entryDate.isNotBlank()) Text("Entry date: ${current.entryDate}", color = ReviewInk)
+                            if (current.modifiedDate.isNotBlank()) Text("Source modified: ${current.modifiedDate}", color = ReviewInk)
+                        }
+                    }
+                }
+            }
             WobHighlightEditor(library, current)
             SourceTagChips(current.sourceTags, tags) { tag -> tags = appendPersonalTag(tags, tag); dirty = true; message = "" }
             OutlinedTextField(value = sourceLink, onValueChange = { sourceLink = it }, label = { Text("Original external source URL (optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
