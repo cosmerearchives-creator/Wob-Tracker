@@ -54,7 +54,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text("Review Mode", style = MaterialTheme.typography.titleLarge, color = ReviewInk, fontWeight = FontWeight.Bold)
-            Text("${pending.size} imported", color = ReviewPlum, style = MaterialTheme.typography.labelMedium)
+            Text("${pending.size} local left", color = ReviewPlum, style = MaterialTheme.typography.labelMedium)
         }
         if (overallRemaining != null) {
             Text(
