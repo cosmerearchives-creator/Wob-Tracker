@@ -70,7 +70,7 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-            listOf("Active", "Archived", "All").forEach { view ->
+            listOf("Active", "Archived", "Junk", "All").forEach { view ->
                 FilterChip(selected = archiveView == view, onClick = { archiveView = view; selectedId = null }, label = { Text(view) })
             }
         }
@@ -85,8 +85,8 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                         listOfNotNull(if (item.cosmere) "Cosmere" else null, if (item.extendedWorks) "Extended Works" else null).joinToString(" · "),
                         color = LibraryPlum, style = MaterialTheme.typography.labelMedium
                     )
-                    if (item.needsReview || item.needsExport) Text(
-                        listOfNotNull(if (item.needsReview) "Needs review" else null, if (item.needsExport) "Needs export" else null).joinToString(" · "),
+                    if (item.needsReview || item.needsExport || item.junk) Text(
+                        listOfNotNull(if (item.needsReview) "Needs review" else null, if (item.needsExport) "Needs export" else null, if (item.junk) "Junk" else null).joinToString(" · "),
                         color = LibraryPlum, style = MaterialTheme.typography.labelMedium
                     )
                     if (selectedId == item.id) {
@@ -136,7 +136,7 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                         }
                         Text("My workflow", color = LibraryPlum, fontWeight = FontWeight.SemiBold)
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Checkbox(checked = item.needsReview, onCheckedChange = { checked ->
+                            Checkbox(enabled = !item.junk, checked = item.needsReview, onCheckedChange = { checked ->
                                 try {
                                     if (library.saveFlags(item.id, checked, item.needsExport)) {
                                         refresh++
@@ -154,7 +154,7 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                             Text("Needs review", color = LibraryInk)
                         }
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Checkbox(checked = item.needsExport, onCheckedChange = { checked ->
+                            Checkbox(enabled = !item.junk, checked = item.needsExport, onCheckedChange = { checked ->
                                 try {
                                     if (library.saveFlags(item.id, item.needsReview, checked)) {
                                         refresh++
@@ -170,6 +170,24 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                                 }
                             })
                             Text("Needs export", color = LibraryInk)
+                        }
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(checked = item.junk, onCheckedChange = { checked ->
+                                try {
+                                    if (library.setJunk(item.id, checked)) {
+                                        refresh++
+                                        saveSucceeded = true
+                                        saveMessage = if (checked) "✓ Moved to Junk." else "✓ Restored to review."
+                                    } else {
+                                        saveSucceeded = false
+                                        saveMessage = "Could not change Junk status."
+                                    }
+                                } catch (e: Exception) {
+                                    saveSucceeded = false
+                                    saveMessage = "Could not change Junk status."
+                                }
+                            })
+                            Text("Junk", color = LibraryInk)
                         }
                         Button(onClick = {
                             try {
