@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 
 private val ReviewPlum = Color(0xFF6B5C87)
 private val ReviewInk = Color(0xFF37343C)
+private val ReviewDivider = Color(0xFF8872A8)
 
 @Composable
 fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit, onNext: () -> Unit) {
@@ -31,7 +32,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
     var dirty by remember(current?.id, localRefresh) { mutableStateOf(false) }
     var showSourceDetails by remember(current?.id) { mutableStateOf(false) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -75,16 +76,22 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                     }
                 }
             }
-            WobHighlightEditor(library, current)
+            HorizontalDivider(color = ReviewDivider, thickness = 1.dp)
+            WobHighlightEditor(
+                library = library,
+                entry = current,
+                sourceUrl = sourceLink,
+                onSourceUrlChange = { sourceLink = it },
+                onSaveSourceUrl = {
+                    message = if (library.saveOriginalUrl(current.id, sourceLink)) "✓ Original source link saved." else "Enter a valid http(s) source URL."
+                }
+            )
             SourceTagChips(current.sourceTags, tags) { tag -> tags = appendPersonalTag(tags, tag); dirty = true; message = "" }
-            OutlinedTextField(value = sourceLink, onValueChange = { sourceLink = it }, label = { Text("Original external source URL (optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            OutlinedButton(onClick = {
-                message = if (library.saveOriginalUrl(current.id, sourceLink)) "✓ Original source link saved." else "Enter a valid http(s) source URL."
-            }) { Text("Save source link") }
             if (current.originalUrl.isBlank() && sourceLink.isBlank()) Text("Arcanum's API does not supply the external source URL.", style = MaterialTheme.typography.bodySmall)
-            HorizontalDivider()
+            HorizontalDivider(color = ReviewDivider, thickness = 1.dp)
             PersonalTagField(value = tags, onValueChange = { tags = it; dirty = true; message = "" }, library = library, revision = libraryRevision + localRefresh, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = notes, onValueChange = { notes = it; dirty = true; message = "" }, label = { Text("My notes") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+            HorizontalDivider(color = ReviewDivider, thickness = 1.dp)
             Text("Work classification", color = ReviewPlum, fontWeight = FontWeight.SemiBold)
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Checkbox(checked = cosmere, onCheckedChange = { cosmere = it; dirty = true; message = "" })
@@ -94,6 +101,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                 Checkbox(checked = extended, onCheckedChange = { extended = it; dirty = true; message = "" })
                 Text("Extended Works", color = ReviewInk)
             }
+            HorizontalDivider(color = ReviewDivider, thickness = 1.dp)
             Text("Workflow", color = ReviewPlum, fontWeight = FontWeight.SemiBold)
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
