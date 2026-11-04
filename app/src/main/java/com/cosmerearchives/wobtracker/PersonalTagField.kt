@@ -6,6 +6,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
@@ -40,6 +44,22 @@ fun PersonalTagField(
     modifier: Modifier = Modifier
 ) {
     var focused by remember { mutableStateOf(false) }
+    val fieldFocusRequester = remember { FocusRequester() }
+    var fieldValue by remember { mutableStateOf(TextFieldValue(value, selection = TextRange(value.length))) }
+
+    // Keep external updates (including source-tag chips and switching WoBs) in sync,
+    // but preserve the cursor/selection while the user is typing normally.
+    LaunchedEffect(value) {
+        if (fieldValue.text != value) {
+            fieldValue = TextFieldValue(value, selection = TextRange(value.length))
+        }
+    }
+    fun selectTag(next: String) {
+        fieldValue = TextFieldValue(next, selection = TextRange(next.length))
+        onValueChange(next)
+        focused = false
+        fieldFocusRequester.requestFocus()
+    }
     val allTags = remember(library, revision) { library.knownPersonalTags() }
     val frequentTags = remember(library, revision) { library.frequentPersonalTags(5) }
     val entered = value.split(',').map { it.trim().lowercase(Locale.ROOT) }.filter { it.isNotEmpty() }.toSet()
@@ -61,33 +81,36 @@ fun PersonalTagField(
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 quickTags.forEach { tag ->
                     SuggestionChip(
-                        onClick = { onValueChange(appendPersonalTag(value, tag)) },
+                        onClick = { selectTag(appendPersonalTag(value, tag)) },
                         label = { Text(tag) }
                     )
                 }
             }
         }
-        OutlinedTextField(
-            value = value,
-            onValueChange = { onValueChange(it); focused = true },
-            label = { Text("My tags (comma separated)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
         if (suggestions.isNotEmpty()) {
             Text("Matching existing tags", style = MaterialTheme.typography.labelSmall)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 suggestions.forEach { suggestion ->
                     SuggestionChip(
                         onClick = {
-                            onValueChange(completePersonalTag(value, suggestion))
-                            focused = false
+                            selectTag(completePersonalTag(value, suggestion))
                         },
                         label = { Text(suggestion) }
                     )
                 }
             }
         }
+        OutlinedTextField(
+            value = fieldValue,
+            onValueChange = {
+                fieldValue = it
+                onValueChange(it.text)
+                focused = true
+            },
+            label = { Text("My tags (comma separated)") },
+            modifier = Modifier.fillMaxWidth().focusRequester(fieldFocusRequester),
+            singleLine = true
+        )
     }
 }
 
