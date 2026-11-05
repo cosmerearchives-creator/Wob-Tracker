@@ -31,7 +31,7 @@ object LibraryTransfer {
                     else obj.put(col,c.getString(n))
                 }
                 val marks = JSONArray()
-                db.rawQuery("SELECT start_offset,end_offset,quote FROM highlights WHERE entry_id=?", arrayOf(c.getInt(0).toString())).use { h ->
+                db.rawQuery("SELECT start_offset,end_offset,quote FROM highlights WHERE entry_id=? ORDER BY start_offset,end_offset", arrayOf(c.getInt(0).toString())).use { h ->
                     while (h.moveToNext()) marks.put(JSONObject().put("start",h.getInt(0)).put("end",h.getInt(1)).put("quote",h.getString(2)))
                 }
                 obj.put("highlights", marks)
@@ -126,6 +126,17 @@ object LibraryTransfer {
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
         return added to skipped
+    }
+    fun exportRecords(library: WobLibrary): JSONArray {
+        val db = library.readableDatabase
+        val ids = mutableSetOf<Int>()
+        db.rawQuery("SELECT id FROM entries WHERE needs_export=1 AND archived=0 AND junk=0", null).use { c -> while (c.moveToNext()) ids.add(c.getInt(0)) }
+        return records(db, ids)
+    }
+    fun exportPackage(library: WobLibrary, output: OutputStream): Int {
+        val records = exportRecords(library)
+        ArcanumSharing.write(records, java.util.UUID.randomUUID().toString(), output)
+        return records.length()
     }
     /** Export is a distinct format; creating it does not change export or archive status. */
     fun exportArchives(library: WobLibrary, output: OutputStream): Int {

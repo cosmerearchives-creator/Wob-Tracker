@@ -47,12 +47,21 @@ fun BackupTools(library: WobLibrary, onRestored: () -> Unit) {
             }
         }
     }
-    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    val transferPreferences = remember { ArcanumSharing.preferences(context) }
+    var transferStatus by remember { mutableStateOf(transferPreferences.getString("status", "No transfer pending.") ?: "") }
+    DisposableEffect(transferPreferences) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "status") main.post { transferStatus = transferPreferences.getString("status", "") ?: ""; onRestored() }
+        }
+        transferPreferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { transferPreferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(ArcanumSharing.MIME)) { uri ->
         if (uri != null && !busy) {
             begin("Exporting to Archives")
             thread {
                 try {
-                    val n = context.contentResolver.openOutputStream(uri)?.use { LibraryTransfer.exportArchives(library,it) }
+                    val n = context.contentResolver.openOutputStream(uri)?.use { LibraryTransfer.exportPackage(library,it) }
                         ?: error("Cannot write export")
                     finish("Exported $n entries. Nothing was marked as transferred.")
                 } catch (e: Exception) { finish("Export failed: ${e.message}") }
@@ -111,7 +120,23 @@ fun BackupTools(library: WobLibrary, onRestored: () -> Unit) {
         HorizontalDivider()
         Text("Transfer to Archives of Arcanum", style = MaterialTheme.typography.titleMedium)
         Text("Export only entries marked Needs export. This does not archive or confirm delivery.")
-        OutlinedButton(enabled = !busy, onClick = { export.launch("wob-archives-transfer.json") }) { Text("Create Archives export file") }
-        Text("Archives import is not yet available. Save this file until the receiving app supports it.", style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(enabled = !busy, onClick = { export.launch("wob-archives-transfer.arcanum") }) { Text("Create Archives export file") }
+        Button(enabled = !busy, onClick = {
+            begin("Preparing Archives share")
+            // SQLite and ZIP work run off the UI thread. Launching share returns to the main thread.
+            thread {
+                try {
+                    val intent = ArcanumSharing.prepare(context, library)
+                    main.post {
+                        try {
+                            transferPreferences.edit().putString("status", "Waiting for Archives to confirm a saved import. Entries remain queued until acknowledgment.").apply()
+                            context.startActivity(intent)
+                            finish("Shared with Archives. Waiting for a verified save.")
+                        } catch (e: Exception) { finish("Share failed; entries remain queued: "+e.message) }
+                    }
+                } catch (e: Exception) { finish("Share failed; entries remain queued: "+e.message) }
+            }
+        }) { Text("Send to Archives of Arcanum") }
+        Text(transferStatus, style = MaterialTheme.typography.bodySmall)
     }
 }
