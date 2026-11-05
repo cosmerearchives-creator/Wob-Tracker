@@ -19,7 +19,9 @@ object LibraryTransfer {
     private fun digest(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
     private fun records(db: SQLiteDatabase, ids: Set<Int>? = null, progress: (Int, Int) -> Unit = { _, _ -> }): JSONArray {
         val result = JSONArray()
-        db.rawQuery("SELECT ${columns.joinToString(",")} FROM entries ORDER BY id", null).use { c ->
+        if (ids != null && ids.isEmpty()) { progress(0, 0); return result }
+        val selected = ids?.let { " WHERE id IN (${it.joinToString(",")})" } ?: ""
+        db.rawQuery("SELECT ${columns.joinToString(",")} FROM entries$selected ORDER BY id", null).use { c ->
             val total = ids?.size ?: c.count
             var completed = 0
             progress(0, total)
@@ -127,6 +129,7 @@ object LibraryTransfer {
         } finally { db.endTransaction() }
         return added to skipped
     }
+    internal fun recordsForIds(library: WobLibrary, ids: Set<Int>): JSONArray = records(library.readableDatabase, ids)
     fun exportRecords(library: WobLibrary): JSONArray {
         val db = library.readableDatabase
         val ids = mutableSetOf<Int>()

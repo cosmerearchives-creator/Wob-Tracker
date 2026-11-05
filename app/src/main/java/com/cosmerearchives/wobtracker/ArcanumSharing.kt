@@ -84,7 +84,7 @@ class ArcanumSaveReceiver : BroadcastReceiver() {
                 var archived = 0
                 db.beginTransaction()
                 try {
-                    val current = LibraryTransfer.exportRecords(library)
+                    val current = LibraryTransfer.recordsForIds(library, (0 until sent.length()).map { sent.getJSONObject(it).getInt("id") }.toSet())
                     val unchanged = (0 until current.length()).associate { val r = current.getJSONObject(it); r.getInt("id") to r.toString() }
                     for (i in 0 until sent.length()) {
                         val r = sent.getJSONObject(i)
