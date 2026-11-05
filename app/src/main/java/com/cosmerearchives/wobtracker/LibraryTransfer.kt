@@ -131,6 +131,7 @@ object LibraryTransfer {
         val db = library.readableDatabase
         val ids = mutableSetOf<Int>()
         db.rawQuery("SELECT id FROM entries WHERE needs_export=1 AND archived=0 AND junk=0", null).use { c -> while (c.moveToNext()) ids.add(c.getInt(0)) }
+        require(ids.size in 1..1000) { "Mark 1–1000 entries for each transfer." }
         return records(db, ids)
     }
     fun exportPackage(library: WobLibrary, output: OutputStream): Int {

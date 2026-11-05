@@ -12,6 +12,7 @@ android {
         applicationId = "com.cosmerearchives.wobtracker"
         minSdk = 26
         targetSdk = 35
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = providers.gradleProperty("releaseVersionCode").orNull?.toIntOrNull() ?: 1
         versionName = providers.gradleProperty("releaseVersionName").orNull ?: "0.1.0-alpha"
     }
@@ -37,6 +38,8 @@ android {
 }
 
 dependencies {
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
     val composeBom = platform("androidx.compose:compose-bom:2025.04.01")
     implementation(composeBom)
     implementation("androidx.activity:activity-compose:1.10.1")
