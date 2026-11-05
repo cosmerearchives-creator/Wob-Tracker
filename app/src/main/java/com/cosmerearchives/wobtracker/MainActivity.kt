@@ -103,6 +103,7 @@ class MainActivity : ComponentActivity() {
                                 Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text("Sample import", color = Ink, style = MaterialTheme.typography.titleMedium)
+                                        if(sampleImporting) LinearProgressIndicator(modifier=Modifier.fillMaxWidth())
                                         Button(enabled = !sampleImporting, onClick = {
                                             sampleImporting = true
                                             thread {

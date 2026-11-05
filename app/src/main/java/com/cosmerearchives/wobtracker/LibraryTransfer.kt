@@ -44,17 +44,21 @@ object LibraryTransfer {
         }
         return result
     }
-    fun backup(library: WobLibrary, output: OutputStream, progress: (Int, Int) -> Unit = { _, _ -> }): Int {
+    fun backup(library: WobLibrary, output: OutputStream, progress: (Int, Int) -> Unit = { _, _ -> }, stage: (TransferProgress) -> Unit = {}): Int {
         val entries = records(library.readableDatabase, progress = progress)
+        stage(TransferProgress("Serializing backup"))
         val bytes = JSONObject().put("format","wob-tracker-backup").put("version",1).put("entries",entries).toString().toByteArray(Charsets.UTF_8)
         val meta = JSONObject().put("format","wob-tracker-backup").put("version",1).put("sha256",digest(bytes)).put("count",entries.length())
+        stage(TransferProgress("Compressing backup"))
         ZipOutputStream(output).use { zip ->
             zip.putNextEntry(ZipEntry("manifest.json")); zip.write(meta.toString().toByteArray(Charsets.UTF_8)); zip.closeEntry()
             zip.putNextEntry(ZipEntry("library.json")); zip.write(bytes); zip.closeEntry()
         }
         return entries.length()
     }
-    private fun validated(input: InputStream): JSONArray {
+    private fun validated(input: InputStream, progress: (TransferProgress) -> Unit = {}): JSONArray {
+        var expanded = 0L
+        progress(TransferProgress("Reading backup"))
         var manifest: JSONObject? = null
         var data: ByteArray? = null
         ZipInputStream(input).use { zip ->
@@ -69,6 +73,7 @@ object LibraryTransfer {
                         if (n < 0) break
                         require(out.size() + n <= 100_000_000) { "Backup too large" }
                         out.write(buf,0,n)
+                        expanded += n; progress(TransferProgress("Expanding backup", expanded, 0, "bytes"))
                     }
                     if (entry.name == "manifest.json") manifest = JSONObject(out.toString("UTF-8"))
                     else data = out.toByteArray()
@@ -77,6 +82,7 @@ object LibraryTransfer {
                 entry = zip.nextEntry
             }
         }
+        progress(TransferProgress("Verifying backup checksums"))
         val m = requireNotNull(manifest) { "Missing manifest" }
         val b = requireNotNull(data) { "Missing library data" }
         require(m.optString("format") == "wob-tracker-backup" && m.optInt("version") == 1) { "Unsupported backup format" }
@@ -92,7 +98,7 @@ object LibraryTransfer {
         }
         return arr
     }
-    fun verify(input: InputStream): Int = validated(input).length()
+    fun verify(input: InputStream, progress: (TransferProgress) -> Unit = {}): Int = validated(input, progress).length()
     /** Merge adds absent records and their highlights, leaving ALL existing records untouched. */
     fun restoreMerge(library: WobLibrary, input: InputStream, progress: (Int, Int) -> Unit = { _, _ -> }): Pair<Int,Int> {
         val arr = validated(input)
@@ -125,17 +131,19 @@ object LibraryTransfer {
                 }
                 if ((i + 1) % 10 == 0 || i + 1 == arr.length()) progress(i + 1, arr.length())
             }
+            stage(TransferProgress("Committing restore"))
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
         return added to skipped
     }
     internal fun recordsForIds(library: WobLibrary, ids: Set<Int>): JSONArray = records(library.readableDatabase, ids)
-    fun exportRecords(library: WobLibrary): JSONArray {
+    fun exportRecords(library: WobLibrary, progress: (TransferProgress) -> Unit = {}): JSONArray {
+        progress(TransferProgress("Reading queued WoBs"))
         val db = library.readableDatabase
         val ids = mutableSetOf<Int>()
         db.rawQuery("SELECT id FROM entries WHERE needs_export=1 AND archived=0 AND junk=0", null).use { c -> while (c.moveToNext()) ids.add(c.getInt(0)) }
         require(ids.size in 1..1000) { "Mark 1–1000 entries for each transfer." }
-        return records(db, ids)
+        return records(db, ids) { done, total -> progress(TransferProgress("Reading queued WoBs", done.toLong(), total.toLong())) }
     }
     fun exportPackage(library: WobLibrary, output: OutputStream): Int {
         val records = exportRecords(library)

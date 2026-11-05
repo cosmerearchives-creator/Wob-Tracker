@@ -15,7 +15,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
 
-data class UpdateState(val message: String = "Checking for updates…", val downloadUrl: String? = null)
+data class UpdateState(val message: String = "Checking for updates…", val downloadUrl: String? = null, val busy: Boolean = false, val fraction: Float? = null)
 
 class UpdateManager(private val activity: Activity) {
     val state = MutableStateFlow(UpdateState())
@@ -23,7 +23,7 @@ class UpdateManager(private val activity: Activity) {
     private val releasesApi = "https://api.github.com/repos/cosmerearchives-creator/Wob-Tracker/releases?per_page=20"
 
     fun check() {
-        state.value = UpdateState("Checking for updates…")
+        state.value = UpdateState("Checking for updates…", busy=true)
         thread {
             try {
                 val releases = JSONArray(readText(releasesApi))
@@ -56,7 +56,7 @@ class UpdateManager(private val activity: Activity) {
 
     fun installLatest() {
         val url = state.value.downloadUrl ?: return
-        state.value = state.value.copy(message = "Downloading update…", downloadUrl = null)
+        state.value = state.value.copy(message = "Downloading update…", downloadUrl = null, busy=true)
         thread {
             try {
                 val directory = File(activity.cacheDir, "updates").apply { mkdirs() }
@@ -67,7 +67,14 @@ class UpdateManager(private val activity: Activity) {
                 conn.instanceFollowRedirects = true
                 try {
                     if (conn.responseCode !in 200..299) error("HTTP ${conn.responseCode}")
-                    conn.inputStream.use { source -> apk.outputStream().use { source.copyTo(it) } }
+                    val total=conn.contentLengthLong
+                    conn.inputStream.use { source -> apk.outputStream().use { output ->
+                        val buffer=ByteArray(65536);var done=0L;var last=0L
+                        while(true){val count=source.read(buffer);if(count<0)break;output.write(buffer,0,count);done+=count
+                            val now=android.os.SystemClock.elapsedRealtime();if(now-last>=100){last=now;val bytes=done;main.post{state.value=UpdateState("Downloading update: $bytes"+(if(total>0)" / $total bytes" else " bytes"),busy=true,fraction=if(total>0)bytes.toFloat()/total else null)}}
+                        }
+                        require(total<0||done==total){"Incomplete update download"}
+                    } }
                 } finally { conn.disconnect() }
                 main.post {
                     if (Build.VERSION.SDK_INT >= 26 && !activity.packageManager.canRequestPackageInstalls()) {

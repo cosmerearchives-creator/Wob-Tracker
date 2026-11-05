@@ -1,5 +1,4 @@
 package com.cosmerearchives.wobtracker
-
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -12,131 +11,78 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlin.concurrent.thread
 
-@Composable
-fun BackupTools(library: WobLibrary, onRestored: () -> Unit) {
-    val context = LocalContext.current
-    val main = remember { Handler(Looper.getMainLooper()) }
-    var status by remember { mutableStateOf("Choose a location outside your phone for an extra copy.") }
-    var verified by remember { mutableStateOf<Int?>(null) }
-    var restoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    var progressDone by remember { mutableIntStateOf(0) }
-    var progressTotal by remember { mutableIntStateOf(0) }
-    var stage by remember { mutableStateOf("") }
-
-    fun begin(label: String) {
-        busy = true; stage = label; progressDone = 0; progressTotal = 0
-        status = "$label…"
-    }
-    fun update(done: Int, total: Int) {
-        main.post { progressDone = done; progressTotal = total }
-    }
-    fun finish(message: String) {
-        main.post { busy = false; stage = ""; status = message }
-    }
-
-    val backup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        if (uri != null && !busy) {
-            begin("Creating backup")
-            thread {
-                try {
-                    val n = context.contentResolver.openOutputStream(uri)?.use { LibraryTransfer.backup(library, it, ::update) }
-                        ?: error("Cannot write backup")
-                    finish("Backup created for $n entries. Keep this file safe.")
-                } catch (e: Exception) { finish("Backup failed: ${e.message}") }
-            }
-        }
-    }
-    val transferPreferences = remember { ArcanumSharing.preferences(context) }
-    var transferStatus by remember { mutableStateOf(transferPreferences.getString("status", "No transfer pending.") ?: "") }
-    DisposableEffect(transferPreferences) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "status") main.post { transferStatus = transferPreferences.getString("status", "") ?: ""; onRestored() }
-        }
-        transferPreferences.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { transferPreferences.unregisterOnSharedPreferenceChangeListener(listener) }
-    }
-    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(ArcanumSharing.MIME)) { uri ->
-        if (uri != null && !busy) {
-            begin("Exporting to Archives")
-            thread {
-                try {
-                    val n = context.contentResolver.openOutputStream(uri)?.use { LibraryTransfer.exportPackage(library,it) }
-                        ?: error("Cannot write export")
-                    finish("Exported $n entries. Nothing was marked as transferred.")
-                } catch (e: Exception) { finish("Export failed: ${e.message}") }
-            }
-        }
-    }
-    val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        restoreUri = null; verified = null
-        if (uri != null && !busy) {
-            begin("Loading and verifying backup")
-            thread {
-                try {
-                    val count = context.contentResolver.openInputStream(uri)?.use { LibraryTransfer.verify(it) }
-                        ?: error("Cannot read backup")
-                    main.post {
-                        busy = false; stage = ""; verified = count; restoreUri = uri
-                        status = "Verified $count entries. Merge adds missing entries and highlights without replacing your notes. Confirm below."
-                    }
-                } catch (e: Exception) { finish("Verification failed: ${e.message}") }
-            }
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Backup & Restore", style = MaterialTheme.typography.titleLarge)
-        Text(status)
-        if (busy) {
-            Text(if (progressTotal > 0) "$stage: $progressDone / $progressTotal entries" else "$stage…")
-            if (progressTotal > 0) {
-                LinearProgressIndicator(progress = { progressDone.toFloat() / progressTotal.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
-            } else {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-        }
-        Button(enabled = !busy, onClick = { backup.launch("wob-tracker-backup.zip") }) { Text("Create complete backup ZIP") }
-        OutlinedButton(enabled = !busy, onClick = { restore.launch(arrayOf("application/zip","application/octet-stream","*/*")) }) { Text("Verify or restore backup") }
-        if (!busy && restoreUri != null && verified != null) {
-            Button(onClick = {
-                val selected = restoreUri ?: return@Button
-                begin("Restoring backup")
-                thread {
-                    try {
-                        val counts = context.contentResolver.openInputStream(selected)?.use {
-                            LibraryTransfer.restoreMerge(library,it,::update)
-                        } ?: error("Could not read backup")
-                        main.post {
-                            restoreUri = null; verified = null
-                            onRestored()
-                        }
-                        finish("Restore complete: ${counts.first} added, ${counts.second} already present. Missing highlights merged.")
-                    } catch (e: Exception) { finish("Restore failed: ${e.message}") }
-                }
-            }) { Text("Confirm safe merge restore") }
-            TextButton(onClick = { restoreUri = null; verified = null }) { Text("Cancel restore") }
-        }
-        HorizontalDivider()
-        Text("Transfer to Archives of Arcanum", style = MaterialTheme.typography.titleMedium)
-        Text("Export only entries marked Needs export. This does not archive or confirm delivery.")
-        OutlinedButton(enabled = !busy, onClick = { export.launch("wob-archives-transfer.arcanum") }) { Text("Create Archives export file") }
-        Button(enabled = !busy, onClick = {
-            begin("Preparing Archives share")
-            // SQLite and ZIP work run off the UI thread. Launching share returns to the main thread.
-            thread {
-                try {
-                    val intent = ArcanumSharing.prepare(context, library)
-                    main.post {
-                        try {
-                            transferPreferences.edit().putString("status", "Waiting for Archives to confirm a saved import. Entries remain queued until acknowledgment.").apply()
-                            context.startActivity(intent)
-                            finish("Shared with Archives. Waiting for a verified save.")
-                        } catch (e: Exception) { finish("Share failed; entries remain queued: "+e.message) }
-                    }
-                } catch (e: Exception) { finish("Share failed; entries remain queued: "+e.message) }
-            }
-        }) { Text("Send to Archives of Arcanum") }
-        Text(transferStatus, style = MaterialTheme.typography.bodySmall)
-    }
+@Composable fun BackupTools(library: WobLibrary,onRestored: ()->Unit){
+ val context=LocalContext.current
+ val main=remember{Handler(Looper.getMainLooper())}
+ val operation by TrackerOperation.state.collectAsState()
+ val busy=operation.busy
+ var verified by remember{mutableStateOf<Int?>(null)}
+ var restoreUri by remember{mutableStateOf<android.net.Uri?>(null)}
+ val prefs=remember{ArcanumSharing.preferences(context)}
+ var transferStatus by remember{mutableStateOf(prefs.getString("status","No transfer pending.")?:"")}
+ var waiting by remember{mutableStateOf(prefs.getBoolean("pending",false))}
+ DisposableEffect(prefs){
+  val listener=android.content.SharedPreferences.OnSharedPreferenceChangeListener{_,key->if(key=="status")main.post{transferStatus=prefs.getString("status","")?:"";waiting=prefs.getBoolean("pending",false);if(!waiting){val outcome=prefs.getString("state","")?:"";if(!TrackerOperation.state.value.busy&&TrackerOperation.state.value.state=="Waiting"&&outcome in listOf("Completed","Failed"))TrackerOperation.finish(outcome,transferStatus);if(outcome=="Completed")onRestored()}}}
+  prefs.registerOnSharedPreferenceChangeListener(listener)
+  onDispose{prefs.unregisterOnSharedPreferenceChangeListener(listener)}
+ }
+ fun progress(p: TransferProgress)=TrackerOperation.update(p)
+ fun counts(stage: String,d: Int,t: Int)=progress(TransferProgress(stage,d.toLong(),t.toLong()))
+ fun finish(state: String,text: String)=TrackerOperation.finish(state,text)
+ val backup=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")){uri->
+  if(uri==null)finish("Cancelled","No backup file selected.")else thread{try{
+   val count=VerifiedTransferFile.save(context,uri,::progress){out->LibraryTransfer.backup(library,out,{d,t->counts("Reading backup entries",d,t)},::progress)}
+   finish("Completed","Backup saved and verified for $count entries. Keep this file safe.")
+  }catch(e: Exception){finish("Failed","Backup was not completed: ${e.message}")}}
+ }
+ val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(ArcanumSharing.MIME)){uri->
+  if(uri==null)finish("Cancelled","No export file selected.")else thread{try{
+   val count=VerifiedTransferFile.save(context,uri,::progress){out->LibraryTransfer.exportPackage(library,out,::progress)}
+   finish("Completed","Export file saved and verified for $count WoBs. Nothing was marked as transferred.")
+  }catch(e: Exception){finish("Failed","Export was not completed; entries remain queued: ${e.message}")}}
+ }
+ val restore=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->
+  restoreUri=null;verified=null
+  if(uri==null)finish("Cancelled","No backup selected.")else thread{try{
+   val count=context.contentResolver.openInputStream(uri)?.use{LibraryTransfer.verify(it,::progress)}?:error("Cannot read backup")
+   main.post{verified=count;restoreUri=uri};finish("Waiting","Verified $count entries. Confirm the safe merge below; existing notes are preserved.")
+  }catch(e: Exception){finish("Failed","Backup verification failed: ${e.message}")}}
+ }
+ fun share(){
+  if(!TrackerOperation.begin("Preparing Archives share"))return
+  thread{try{
+   val intent=ArcanumSharing.prepare(context,library,::progress);progress(TransferProgress("Starting Android share"))
+   main.post{try{
+    prefs.edit().putBoolean("pending",true).putString("state","Waiting").putString("status","Waiting for Archives to verify and save this transfer. Entries remain queued.").commit()
+    context.startActivity(intent);finish("Waiting","Shared with Archives. Waiting for its saved-import acknowledgment.")
+   }catch(e: Exception){prefs.edit().putBoolean("pending",false).putString("status","Share failed; entries remain queued: ${e.message}").apply();finish("Failed","Could not start share: ${e.message}")}}
+  }catch(e: Exception){finish("Failed","Share was not completed; entries remain queued: ${e.message}")}}
+ }
+ Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
+  Text("Backup & Restore",style=MaterialTheme.typography.titleLarge)
+  Text(operation.state+" · "+operation.progress.stage)
+  if(operation.message.isNotBlank())Text(operation.message)
+  if(busy){val p=operation.progress
+   if(p.total>0){LinearProgressIndicator(progress={(p.completed.toFloat()/p.total).coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth());Text("${100*p.completed/p.total}% · ${p.completed} / ${p.total} ${p.unit}")}
+   else{LinearProgressIndicator(modifier=Modifier.fillMaxWidth());if(p.completed>0)Text("${p.completed} ${p.unit}")}
+   TextButton(enabled=operation.progress.stage!="Committing restore",onClick={TrackerOperation.cancel()}){Text("Cancel operation")}
+  }
+  Button(enabled=!busy,onClick={if(TrackerOperation.begin("Waiting for backup location"))backup.launch("wob-tracker-backup.zip")}){Text("Create complete backup ZIP")}
+  OutlinedButton(enabled=!busy,onClick={if(TrackerOperation.begin("Waiting for backup selection"))restore.launch(arrayOf("application/zip","application/octet-stream","*/*"))}){Text("Verify or restore backup")}
+  if(!busy&&restoreUri!=null&&verified!=null){
+   Button(onClick={val selected=restoreUri?:return@Button;if(!TrackerOperation.begin("Verifying before restore"))return@Button
+    thread{try{
+     val result=context.contentResolver.openInputStream(selected)?.use{LibraryTransfer.restoreMerge(library,it,{d,t->counts("Merging backup entries",d,t)},::progress)}?:error("Cannot read backup")
+     main.post{restoreUri=null;verified=null;onRestored()};finish("Completed","Restore committed: ${result.first} added, ${result.second} already present. Notes and highlights preserved.")
+    }catch(e: Exception){finish("Failed","Restore was not completed: ${e.message}")}}
+   }){Text("Confirm safe merge restore")}
+   TextButton(onClick={restoreUri=null;verified=null;finish("Cancelled","Restore cancelled. Library unchanged.")}){Text("Cancel restore")}
+  }
+  HorizontalDivider();Text("Transfer to Archives of Arcanum",style=MaterialTheme.typography.titleMedium)
+  Text("A blue WoB Sticky and a connected personal-note Sticky, when present. Only a verified Archives save can archive the source entries.")
+  OutlinedButton(enabled=!busy,onClick={if(TrackerOperation.begin("Waiting for export location"))export.launch("wob-archives-transfer.arcanum")}){Text("Create Archives export file")}
+  Button(enabled=!busy&&!waiting,onClick={share()}){Text("Send to Archives of Arcanum")}
+  if(waiting){LinearProgressIndicator(modifier=Modifier.fillMaxWidth());Text("Waiting for saved-import acknowledgment");TextButton(enabled=!busy,onClick={share()}){Text("Retry pending share")}}
+  Text(transferStatus,style=MaterialTheme.typography.bodySmall)
+ }
 }
