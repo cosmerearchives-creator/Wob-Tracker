@@ -30,6 +30,7 @@ jobs:
           test -d "$ANDROID_HOME/platforms/android-35" || { echo 'Android API 35 missing on runner'; exit 1; }
           test -d "$ANDROID_HOME/build-tools/35.0.0" || { echo 'Android build tools 35 missing on runner'; exit 1; }
       - name: Download official Archives receiver for end-to-end test
+        if: github.ref == 'refs/heads/main'
         run: curl --fail --location --retry 3 --output "$RUNNER_TEMP/Archives.apk" https://github.com/cosmerearchives-creator/Mind-Map/releases/download/v0.14.2/Silverlight.apk
       - name: Enable Android emulator acceleration
         run: |
