@@ -100,8 +100,8 @@ object LibraryTransfer {
     }
     fun verify(input: InputStream, progress: (TransferProgress) -> Unit = {}): Int = validated(input, progress).length()
     /** Merge adds absent records and their highlights, leaving ALL existing records untouched. */
-    fun restoreMerge(library: WobLibrary, input: InputStream, progress: (Int, Int) -> Unit = { _, _ -> }): Pair<Int,Int> {
-        val arr = validated(input)
+    fun restoreMerge(library: WobLibrary, input: InputStream, progress: (Int, Int) -> Unit = { _, _ -> }, stage: (TransferProgress) -> Unit = {}): Pair<Int,Int> {
+        val arr = validated(input, stage)
         val db = library.writableDatabase
         var added = 0
         var skipped = 0
@@ -145,9 +145,9 @@ object LibraryTransfer {
         require(ids.size in 1..1000) { "Mark 1–1000 entries for each transfer." }
         return records(db, ids) { done, total -> progress(TransferProgress("Reading queued WoBs", done.toLong(), total.toLong())) }
     }
-    fun exportPackage(library: WobLibrary, output: OutputStream): Int {
-        val records = exportRecords(library)
-        ArcanumSharing.write(records, java.util.UUID.randomUUID().toString(), output)
+    fun exportPackage(library: WobLibrary, output: OutputStream, progress: (TransferProgress) -> Unit = {}): Int {
+        val records = exportRecords(library, progress)
+        ArcanumSharing.write(records, java.util.UUID.randomUUID().toString(), output, progress)
         return records.length()
     }
     /** Export is a distinct format; creating it does not change export or archive status. */

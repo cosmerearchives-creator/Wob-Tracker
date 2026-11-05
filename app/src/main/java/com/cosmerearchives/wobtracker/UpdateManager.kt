@@ -22,7 +22,10 @@ class UpdateManager(private val activity: Activity) {
     private val main = Handler(Looper.getMainLooper())
     private val releasesApi = "https://api.github.com/repos/cosmerearchives-creator/Wob-Tracker/releases?per_page=20"
 
+    private val checking=java.util.concurrent.atomic.AtomicBoolean(false)
+    private val downloading=java.util.concurrent.atomic.AtomicBoolean(false)
     fun check() {
+        if(downloading.get()||!checking.compareAndSet(false,true))return
         state.value = UpdateState("Checking for updates…", busy=true)
         thread {
             try {
@@ -50,12 +53,13 @@ class UpdateManager(private val activity: Activity) {
                 }
             } catch (e: Exception) {
                 main.post { state.value = UpdateState("Couldn't check for updates. Please try again.") }
-            }
+            } finally { checking.set(false) }
         }
     }
 
     fun installLatest() {
         val url = state.value.downloadUrl ?: return
+        if(!downloading.compareAndSet(false,true))return
         state.value = state.value.copy(message = "Downloading update…", downloadUrl = null, busy=true)
         thread {
             try {
@@ -92,7 +96,7 @@ class UpdateManager(private val activity: Activity) {
                 }
             } catch (e: Exception) {
                 main.post { state.value = UpdateState("Download failed. Check your connection and try again.", url) }
-            }
+            } finally { downloading.set(false) }
         }
     }
 

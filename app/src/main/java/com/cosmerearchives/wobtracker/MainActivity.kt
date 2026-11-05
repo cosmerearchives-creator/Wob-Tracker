@@ -132,6 +132,7 @@ class MainActivity : ComponentActivity() {
                                 Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Text(updateState.message, color = Ink)
+                                        if(updateState.busy){if(updateState.fraction!=null)LinearProgressIndicator(progress={updateState.fraction!!},modifier=Modifier.fillMaxWidth())else LinearProgressIndicator(modifier=Modifier.fillMaxWidth())}
                                         if (updateState.downloadUrl != null) {
                                             Button(onClick = { updates.installLatest() }) { Text("Install update") }
                                         }

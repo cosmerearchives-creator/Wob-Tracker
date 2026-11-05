@@ -44,14 +44,10 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
-            INTEGRATION=false
-            if [ -f "$RUNNER_TEMP/Archives.apk" ]; then
-              adb install -r "$RUNNER_TEMP/Archives.apk"
-              INTEGRATION=true
-            fi
+            if [ -f "$RUNNER_TEMP/Archives.apk" ]; then adb install -r "$RUNNER_TEMP/Archives.apk"; fi
             adb shell svc wifi disable
             adb shell svc data disable
-            gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.archivesIntegration="$INTEGRATION"
+            gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.archivesIntegration=${{ github.ref == 'refs/heads/main' && 'true' || 'false' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
