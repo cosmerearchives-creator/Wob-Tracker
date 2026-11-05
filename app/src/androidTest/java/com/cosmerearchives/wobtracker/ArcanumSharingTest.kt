@@ -15,6 +15,33 @@ import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class ArcanumSharingTest {
+    @Test fun officialArchivesColdStartRoundTrip() {
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("archivesIntegration") == "true")
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        instrumentation.uiAutomation.executeShellCommand("am force-stop com.cosmerearchives.silverlight").close()
+        instrumentation.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        val library = WobLibrary(context)
+        library.saveSource(SavedWob(987603, "Round trip event", "2026-01-01", "Offline source transcript", "Cosmere", "", ""))
+        library.savePersonal(987603, "Round trip", "Personal notes must survive")
+        library.saveFlags(987603, true, true)
+        library.addHighlight(987603, 0, 7, "Offline")
+        val intent = ArcanumSharing.prepare(context, library).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        val deadline = System.currentTimeMillis() + 90000
+        var saved = false
+        while (System.currentTimeMillis() < deadline) {
+            val row = library.entries(archiveView = "All").first { it.id == 987603 }
+            if (row.archived && !row.needsExport) { saved = true; break }
+            Thread.sleep(200)
+        }
+        assertTrue("Official Archives must confirm a durable offline cold-start save", saved)
+        val row = library.entries(archiveView = "All").first { it.id == 987603 }
+        assertTrue(row.needsReview); assertEquals("Personal notes must survive", row.myNotes)
+        assertEquals(1, library.highlights(987603).size)
+        library.close()
+    }
+
     @Test fun acknowledgmentKeepsEditsAndReviewDataAndIgnoresCanceledTransfers() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val library = WobLibrary(context)
