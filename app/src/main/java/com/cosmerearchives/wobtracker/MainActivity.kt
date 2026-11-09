@@ -16,6 +16,8 @@ import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
 import kotlin.concurrent.thread
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +48,8 @@ class MainActivity : ComponentActivity() {
             var sampleImportStatus by remember { mutableStateOf("") }
             val contentScrollState = rememberScrollState()
             val scrollScope = rememberCoroutineScope()
+            val focusManager = LocalFocusManager.current
+            val keyboardController = LocalSoftwareKeyboardController.current
 
             MaterialTheme(colorScheme = lightColorScheme(primary = Plum, background = Background, surface = Color.White, onBackground = Ink)) {
                 Column(Modifier.fillMaxSize().background(Background).imePadding()) {
@@ -89,6 +93,8 @@ class MainActivity : ComponentActivity() {
                                 Surface(color = Lavender, shape = RoundedCornerShape(22.dp)) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                                         ReviewMode(library, libraryRevision, onChanged = { libraryRevision++ }, onNext = {
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
                                             scrollScope.launch { contentScrollState.scrollTo(0) }
                                         })
                                     }
