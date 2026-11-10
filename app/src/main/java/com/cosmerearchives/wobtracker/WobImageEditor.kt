@@ -23,8 +23,10 @@ import java.io.ByteArrayOutputStream
 private fun prepareJpeg(context: android.content.Context, uri: Uri): ByteArray {
     val resolver = context.contentResolver
     val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
-        ?: error("Unable to read image")
+    // inJustDecodeBounds intentionally makes decodeStream return null: check the
+    // stream and decoded dimensions rather than interpreting null as failure.
+    val boundsStream = resolver.openInputStream(uri) ?: error("Unable to open image")
+    boundsStream.use { BitmapFactory.decodeStream(it, null, options) }
     require(options.outWidth > 0 && options.outHeight > 0) { "Not a supported image" }
     var sample = 1
     while (options.outWidth / sample > 1600 || options.outHeight / sample > 1600) sample *= 2
