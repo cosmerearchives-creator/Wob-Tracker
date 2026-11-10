@@ -37,6 +37,9 @@ object LibraryTransfer {
                     while (h.moveToNext()) marks.put(JSONObject().put("start",h.getInt(0)).put("end",h.getInt(1)).put("quote",h.getString(2)))
                 }
                 obj.put("highlights", marks)
+                db.rawQuery("SELECT image_data FROM wob_images WHERE entry_id=?", arrayOf(c.getInt(0).toString())).use { photo ->
+                    if (photo.moveToFirst()) obj.put("image_sha256", digest(photo.getBlob(0)))
+                }
                 result.put(obj)
                 completed++
                 if (completed % 10 == 0 || completed == total) progress(completed, total)
