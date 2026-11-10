@@ -32,7 +32,15 @@ object StreamingBackup {
                 JSONObject().put("start", h.getInt(0)).put("end", h.getInt(1)).put("quote", h.getString(2))
             )
         }
-        return item.put("highlights", highlights)
+        item.put("highlights", highlights)
+        db.rawQuery("SELECT mime_type,image_data FROM wob_images WHERE entry_id=?", arrayOf(c.getInt(0).toString())).use { image ->
+            if (image.moveToFirst()) {
+                item.put("image", JSONObject()
+                    .put("mimeType", image.getString(0))
+                    .put("base64", android.util.Base64.encodeToString(image.getBlob(1), android.util.Base64.NO_WRAP)))
+            }
+        }
+        return item
     }
 
     fun backup(library: WobLibrary, output: OutputStream, progress: (Int, Int) -> Unit, stage: (TransferProgress) -> Unit): Int {
@@ -157,6 +165,17 @@ object StreamingBackup {
                             }
                             db.insertOrThrow("entries", null, values)
                             added++
+                        }
+                        val image = obj.optJSONObject("image")
+                        if (image != null) {
+                            val bytes = android.util.Base64.decode(image.getString("base64"), android.util.Base64.DEFAULT)
+                            require(image.getString("mimeType") == "image/jpeg" && bytes.size in 1..2_000_000) { "Invalid attached image in backup" }
+                            // Safe merge never overwrites an image already present.
+                            db.insertWithOnConflict("wob_images", null, ContentValues().apply {
+                                put("entry_id", id)
+                                put("mime_type", "image/jpeg")
+                                put("image_data", bytes)
+                            }, SQLiteDatabase.CONFLICT_IGNORE)
                         }
                         val marks = obj.getJSONArray("highlights")
                         for (i in 0 until marks.length()) {
