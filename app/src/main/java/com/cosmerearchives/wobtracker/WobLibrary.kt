@@ -10,10 +10,11 @@ import java.net.URL
 
 data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = true, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false, val eventId: Int = 0, val entryDate: String = "", val modifiedDate: String = "", val originalUrl: String = "", val archived: Boolean = false, val junk: Boolean = false, val sourceNote: String = "")
 
-class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 8) {
+class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 9) {
     val backupCacheDir: java.io.File = context.cacheDir
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 1, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0, event_id INTEGER NOT NULL DEFAULT 0, entry_date TEXT NOT NULL DEFAULT '', modified_date TEXT NOT NULL DEFAULT '', original_url TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0, junk INTEGER NOT NULL DEFAULT 0, source_note TEXT NOT NULL DEFAULT '')")
+        db.execSQL("CREATE TABLE wob_images (entry_id INTEGER PRIMARY KEY, mime_type TEXT NOT NULL, image_data BLOB NOT NULL, FOREIGN KEY(entry_id) REFERENCES entries(id))")
         db.execSQL("CREATE TABLE highlights (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, quote TEXT NOT NULL, UNIQUE(entry_id,start_offset,end_offset))")
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -37,6 +38,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         if (oldVersion < 6) db.execSQL("ALTER TABLE entries ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
         if (oldVersion < 7) db.execSQL("ALTER TABLE entries ADD COLUMN junk INTEGER NOT NULL DEFAULT 0")
         if (oldVersion < 8) db.execSQL("ALTER TABLE entries ADD COLUMN source_note TEXT NOT NULL DEFAULT ''")
+        if (oldVersion < 9) db.execSQL("CREATE TABLE IF NOT EXISTS wob_images (entry_id INTEGER PRIMARY KEY, mime_type TEXT NOT NULL, image_data BLOB NOT NULL, FOREIGN KEY(entry_id) REFERENCES entries(id))")
         db.execSQL("CREATE TABLE IF NOT EXISTS highlights (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, quote TEXT NOT NULL, UNIQUE(entry_id,start_offset,end_offset))")
     }
 
@@ -177,6 +179,27 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         }
         return imported to duplicates
     }
+
+    data class WobImage(val mimeType: String, val bytes: ByteArray)
+
+    /** The image bytes live with this WoB, independently of temporary Gallery URIs. */
+    fun imageFor(entryId: Int): WobImage? =
+        readableDatabase.rawQuery("SELECT mime_type,image_data FROM wob_images WHERE entry_id=?", arrayOf(entryId.toString())).use { c ->
+            if (c.moveToFirst()) WobImage(c.getString(0), c.getBlob(1)) else null
+        }
+
+    fun saveImage(entryId: Int, mimeType: String, bytes: ByteArray): Boolean {
+        require(mimeType == "image/jpeg" && bytes.isNotEmpty() && bytes.size <= 2_000_000) { "Image must be a JPEG smaller than 2 MB" }
+        require(hasEntry(entryId)) { "Cannot attach to an unknown WoB" }
+        return writableDatabase.insertWithOnConflict("wob_images", null, ContentValues().apply {
+            put("entry_id", entryId)
+            put("mime_type", mimeType)
+            put("image_data", bytes)
+        }, SQLiteDatabase.CONFLICT_REPLACE) != -1L
+    }
+
+    fun deleteImage(entryId: Int): Boolean =
+        writableDatabase.delete("wob_images", "entry_id=?", arrayOf(entryId.toString())) == 1
 
     data class Highlight(val id: Long, val start: Int, val end: Int, val quote: String)
 
