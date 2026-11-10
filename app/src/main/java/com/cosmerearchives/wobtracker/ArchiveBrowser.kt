@@ -91,20 +91,19 @@ fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
                 try {
                     val fetched = fetchArchivePage(pageNumber)
                     if (fetched.entries.isEmpty()) break
-                    for (entry in fetched.entries) {
-                        if (cancelImport.get()) break
-                        if (library.hasEntry(entry.id)) skipped++
-                        else {
-                            library.saveSource(entry)
-                            if (!library.hasEntry(entry.id)) error("Could not save WoB #${entry.id}")
-                            imported++
-                        }
-                        processed++
-                    }
-                    // Never advance beyond a page that was only partially saved.
-                    if (cancelImport.get()) break
-                    checkpoint.edit().putInt("next_page", pageNumber + 1)
-                        .putInt("reported_total", fetched.total).commit()
+                    // Commit each page atomically. A pause/failure never leaves a
+                    // half-saved page while the checkpoint claims it is complete.
+                    val counts = library.importPage(fetched.entries) { cancelImport.get() }
+                    imported += counts.first
+                    skipped += counts.second
+                    processed += fetched.entries.size
+                    // A failed checkpoint write is safe: the next attempt will
+                    // re-read this page and skip its existing records by ID.
+                    val savedCheckpoint = checkpoint.edit()
+                        .putInt("next_page", pageNumber + 1)
+                        .putInt("reported_total", fetched.total)
+                        .commit()
+                    if (!savedCheckpoint) error("Could not save import checkpoint; rerunning this page is safe")
                     browserMain.post {
                         totalReported = fetched.total
                         savedCount = library.savedEntryCount()
@@ -114,8 +113,11 @@ fun ArchiveBrowser(library: WobLibrary, onLibraryChanged: () -> Unit) {
                     }
                     if (fetched.entries.size < 50 || fetched.page * 50 >= fetched.total) break
                     Thread.sleep(1200L)
+                } catch (e: java.io.InterruptedIOException) {
+                    // Page transaction was rolled back: leave checkpoint unchanged.
+                    break
                 } catch (e: Exception) {
-                    failure = "Stopped on page $pageNumber: ${e.javaClass.simpleName}"
+                    failure = "Stopped on page $pageNumber: ${e.javaClass.simpleName}; retry is safe."
                     checkpoint.edit().putString("last_failure", failure).apply()
                     break
                 }
