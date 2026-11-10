@@ -17,6 +17,8 @@ import kotlin.concurrent.thread
  val operation by TrackerOperation.state.collectAsState()
  val busy=operation.busy
  var verified by remember{mutableStateOf<Int?>(null)}
+ var checkingDatabase by remember { mutableStateOf(false) }
+ var integrityResult by remember { mutableStateOf("Not checked yet.") }
  var restoreUri by remember{mutableStateOf<android.net.Uri?>(null)}
  val prefs=remember{ArcanumSharing.preferences(context)}
  var transferStatus by remember{mutableStateOf(prefs.getString("status","No transfer pending.")?:"")}
@@ -78,7 +80,18 @@ import kotlin.concurrent.thread
    }){Text("Confirm safe merge restore")}
    TextButton(onClick={restoreUri=null;verified=null;finish("Cancelled","Restore cancelled. Library unchanged.")}){Text("Cancel restore")}
   }
-  HorizontalDivider();Text("Transfer to Archives of Arcanum",style=MaterialTheme.typography.titleMedium)
+  HorizontalDivider()
+  Text("Library safety check", style=MaterialTheme.typography.titleMedium)
+  Text("Read-only database integrity and highlight checks; nothing is deleted.")
+  OutlinedButton(enabled=!busy && !checkingDatabase,onClick={
+   checkingDatabase=true
+   thread {
+    val result=try { library.checkIntegrity() } catch(e:Exception) { "Could not finish database check: ${e.message}" }
+    main.post { integrityResult=result;checkingDatabase=false }
+   }
+  }) { Text(if(checkingDatabase) "Checking database…" else "Check database health") }
+  Text(integrityResult,style=MaterialTheme.typography.bodySmall)
+    HorizontalDivider();Text("Transfer to Archives of Arcanum",style=MaterialTheme.typography.titleMedium)
   Text("A blue WoB Sticky and a connected personal-note Sticky, when present. Only a verified Archives save can archive the source entries.")
   OutlinedButton(enabled=!busy,onClick={if(TrackerOperation.begin("Waiting for export location"))export.launch("wob-archives-transfer.arcanum")}){Text("Create Archives export file")}
   Button(enabled=!busy&&!waiting,onClick={share()}){Text("Send to Archives of Arcanum")}
