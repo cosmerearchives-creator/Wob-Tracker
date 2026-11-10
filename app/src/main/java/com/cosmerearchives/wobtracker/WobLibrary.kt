@@ -70,6 +70,70 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         return result
     }
 
+    /** Count matching entries without loading transcripts into Compose memory. */
+    fun countLibrarySection(query: String, category: String, section: String): Int {
+        val filter = "%${query.trim()}%"
+        val categorySql = when (category) {
+            "Cosmere" -> " AND cosmere=1"
+            "Extended Works" -> " AND extended_works=1"
+            else -> ""
+        }
+        val sectionSql = when (section) {
+            "Needs Review" -> " AND junk=0 AND needs_review=1"
+            "Reviewed" -> " AND junk=0 AND needs_review=0"
+            "Junk" -> " AND junk=1"
+            else -> " AND 1=0"
+        }
+        return readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$categorySql$sectionSql",
+            arrayOf(filter, filter, filter, filter)
+        ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+    }
+
+    /** One small page at a time; all search/filter logic stays in SQLite. */
+    fun libraryPage(query: String, category: String, section: String, page: Int, pageSize: Int = 50): List<SavedWob> {
+        val filter = "%${query.trim()}%"
+        val categorySql = when (category) {
+            "Cosmere" -> " AND cosmere=1"
+            "Extended Works" -> " AND extended_works=1"
+            else -> ""
+        }
+        val sectionSql = when (section) {
+            "Needs Review" -> " AND junk=0 AND needs_review=1"
+            "Reviewed" -> " AND junk=0 AND needs_review=0"
+            "Junk" -> " AND junk=1"
+            else -> " AND 1=0"
+        }
+        val boundedSize = pageSize.coerceIn(1, 100)
+        val offset = (page.coerceAtLeast(0).toLong() * boundedSize).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val result = mutableListOf<SavedWob>()
+        readableDatabase.rawQuery(
+            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url,archived,junk,source_note FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$categorySql$sectionSql ORDER BY id DESC LIMIT ? OFFSET ?",
+            arrayOf(filter, filter, filter, filter, boundedSize.toString(), offset.toString())
+        ).use { c ->
+            while (c.moveToNext()) {
+                result.add(SavedWob(c.getInt(0),c.getString(1),c.getString(2),c.getString(3),c.getString(4),c.getString(5),c.getString(6),c.getInt(7)!=0,c.getInt(8)!=0,c.getInt(9)!=0,c.getInt(10)!=0,c.getInt(11),c.getString(12),c.getString(13),c.getString(14),c.getInt(15)!=0,c.getInt(16)!=0,c.getString(17)))
+            }
+        }
+        return result
+    }
+
+    /** Read-only SQLite integrity assessment; never rebuilds or deletes user data. */
+    fun checkIntegrity(): String {
+        val db = readableDatabase
+        val integrity = db.rawQuery("PRAGMA integrity_check", null).use { c ->
+            val issues = mutableListOf<String>()
+            while (c.moveToNext() && issues.size < 4) issues.add(c.getString(0))
+            issues.joinToString("; ")
+        }
+        if (integrity != "ok") return "Database integrity check failed: $integrity. Back up your data before making changes."
+        val missing = db.rawQuery(
+            "SELECT COUNT(*) FROM highlights h LEFT JOIN entries e ON e.id=h.entry_id WHERE e.id IS NULL", null
+        ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+        if (missing != 0) return "Database is readable, but $missing highlights have no matching WoB."
+        return "Database OK · ${savedEntryCount()} saved WoBs · no orphaned highlights."
+    }
+
     fun saveSource(entry: SavedWob) {
         val values = ContentValues().apply {
             put("id", entry.id); put("event", entry.event); put("date", entry.date)
