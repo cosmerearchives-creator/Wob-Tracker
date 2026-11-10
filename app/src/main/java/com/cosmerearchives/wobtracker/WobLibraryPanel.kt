@@ -26,15 +26,18 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
     var selectedId by remember { mutableStateOf<Int?>(null) }
     var saveMessage by remember { mutableStateOf<String?>(null) }
     var saveSucceeded by remember { mutableStateOf(false) }
-    val allItems = remember(query,categoryFilter,refresh,libraryRevision) { library.entries(query, "All", categoryFilter, "All") }
-    val items = remember(allItems, librarySection) {
-        allItems.filter { item ->
-            when (librarySection) {
-                "Needs Review" -> !item.junk && item.needsReview
-                "Reviewed" -> !item.junk && !item.needsReview
-                else -> item.junk
-            }
-        }
+    var pageIndex by remember { mutableIntStateOf(0) }
+    LaunchedEffect(query, librarySection, categoryFilter) {
+        pageIndex = 0
+        selectedId = null
+    }
+    val totalCount = remember(query, categoryFilter, librarySection, refresh, libraryRevision) {
+        library.countLibrarySection(query, categoryFilter, librarySection)
+    }
+    val lastPage = ((totalCount - 1).coerceAtLeast(0)) / 50
+    LaunchedEffect(lastPage) { if (pageIndex > lastPage) pageIndex = lastPage }
+    val items = remember(query, categoryFilter, librarySection, pageIndex, refresh, libraryRevision) {
+        library.libraryPage(query, categoryFilter, librarySection, pageIndex)
     }
     val current = items.firstOrNull { it.id == selectedId }
     var tags by remember(current?.id, refresh) { mutableStateOf(current?.myTags ?: "") }
@@ -58,7 +61,14 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                 FilterChip(selected = categoryFilter == category, onClick = { categoryFilter = category }, label = { Text(category) })
             }
         }
-        Text("${items.size} ${librarySection.lowercase()} WoBs shown", color = LibraryInk, style = MaterialTheme.typography.labelMedium)
+        Text("$totalCount ${librarySection.lowercase()} WoBs · showing page ${pageIndex + 1} of ${lastPage + 1}",
+            color = LibraryInk, style = MaterialTheme.typography.labelMedium)
+        if (totalCount > 50) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                OutlinedButton(enabled = pageIndex > 0, onClick = { pageIndex--; selectedId = null }) { Text("Previous 50") }
+                OutlinedButton(enabled = pageIndex < lastPage, onClick = { pageIndex++; selectedId = null }) { Text("Next 50") }
+            }
+        }
         items.forEach { item ->
             ElevatedCard(onClick = { selectedId = if (selectedId == item.id) null else item.id; saveMessage = null }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -202,6 +212,12 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                         }
                     }
                 }
+            }
+        }
+        if (totalCount > 50) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(enabled = pageIndex > 0, onClick = { pageIndex--; selectedId = null }) { Text("Previous 50") }
+                OutlinedButton(enabled = pageIndex < lastPage, onClick = { pageIndex++; selectedId = null }) { Text("Next 50") }
             }
         }
     }
