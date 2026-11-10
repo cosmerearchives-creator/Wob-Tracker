@@ -160,7 +160,7 @@ object LibraryTransfer {
     }
     fun exportPackage(library: WobLibrary, output: OutputStream, progress: (TransferProgress) -> Unit = {}): Int {
         val records = exportRecords(library, progress)
-        ArcanumSharing.write(records, java.util.UUID.randomUUID().toString(), output, progress)
+        ArcanumSharing.write(records, java.util.UUID.randomUUID().toString(), output, progress, library)
         return records.length()
     }
     /** Export is a distinct format; creating it does not change export or archive status. */
