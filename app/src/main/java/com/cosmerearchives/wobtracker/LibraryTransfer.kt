@@ -44,18 +44,23 @@ object LibraryTransfer {
         }
         return result
     }
-    fun backup(library: WobLibrary, output: OutputStream, progress: (Int, Int) -> Unit = { _, _ -> }, stage: (TransferProgress) -> Unit = {}): Int {
-        val entries = records(library.readableDatabase, progress = progress)
-        stage(TransferProgress("Serializing backup"))
-        val bytes = JSONObject().put("format","wob-tracker-backup").put("version",1).put("entries",entries).toString().toByteArray(Charsets.UTF_8)
-        val meta = JSONObject().put("format","wob-tracker-backup").put("version",1).put("sha256",digest(bytes)).put("count",entries.length())
-        stage(TransferProgress("Compressing backup"))
-        ZipOutputStream(output).use { zip ->
-            zip.putNextEntry(ZipEntry("manifest.json")); zip.write(meta.toString().toByteArray(Charsets.UTF_8)); zip.closeEntry()
-            zip.putNextEntry(ZipEntry("library.json")); zip.write(bytes); zip.closeEntry()
+    /** Version 2 uses streaming JSON lines; v1 backups remain restorable. */
+    fun backup(library: WobLibrary, output: OutputStream, progress: (Int, Int) -> Unit = { _, _ -> }, stage: (TransferProgress) -> Unit = {}): Int =
+        StreamingBackup.backup(library, output, progress, stage)
+
+    /** Read the first ZIP entry name without consuming the stream for the real parser. */
+    private fun backupVersionStream(input: InputStream): Pair<java.io.BufferedInputStream, Boolean> {
+        val buffered = java.io.BufferedInputStream(input)
+        buffered.mark(65536)
+        val nonClosing = object : java.io.FilterInputStream(buffered) {
+            override fun close() {}
         }
-        return entries.length()
+        val firstEntry = ZipInputStream(nonClosing).use { it.nextEntry?.name }
+        buffered.reset()
+        require(firstEntry == "records.ndjson" || firstEntry == "manifest.json") { "Unrecognized backup layout" }
+        return buffered to (firstEntry == "records.ndjson")
     }
+
     private fun validated(input: InputStream, progress: (TransferProgress) -> Unit = {}): JSONArray {
         var expanded = 0L
         progress(TransferProgress("Reading backup"))
@@ -98,10 +103,15 @@ object LibraryTransfer {
         }
         return arr
     }
-    fun verify(input: InputStream, progress: (TransferProgress) -> Unit = {}): Int = validated(input, progress).length()
+    fun verify(input: InputStream, progress: (TransferProgress) -> Unit = {}): Int {
+        val (stream, v2) = backupVersionStream(input)
+        return if (v2) StreamingBackup.verify(stream, progress) else validated(stream, progress).length()
+    }
     /** Merge adds absent records and their highlights, leaving ALL existing records untouched. */
     fun restoreMerge(library: WobLibrary, input: InputStream, progress: (Int, Int) -> Unit = { _, _ -> }, stage: (TransferProgress) -> Unit = {}): Pair<Int,Int> {
-        val arr = validated(input, stage)
+        val (stream, v2) = backupVersionStream(input)
+        if (v2) return StreamingBackup.restoreMerge(library, stream, progress, stage)
+        val arr = validated(stream, stage)
         val db = library.writableDatabase
         var added = 0
         var skipped = 0
