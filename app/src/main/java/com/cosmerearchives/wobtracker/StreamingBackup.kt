@@ -190,12 +190,15 @@ object StreamingBackup {
                         if ((added + skipped) % 10 == 0) progress(added + skipped, count)
                     }
                 }
+                // Report progress before marking the transaction successful.
+                // If the operation is cancelled or the callback fails, rollback
+                // must leave previously saved entries untouched.
+                progress(count, count)
                 stage(TransferProgress("Committing restore"))
                 db.setTransactionSuccessful()
             } finally {
                 db.endTransaction()
             }
-            progress(count, count)
             return added to skipped
         } finally {
             temp.delete()
