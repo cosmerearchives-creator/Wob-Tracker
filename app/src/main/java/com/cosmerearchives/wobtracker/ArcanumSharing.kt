@@ -24,7 +24,7 @@ object ArcanumSharing {
     const val TARGET = "com.cosmerearchives.silverlight"
     const val MIME = "application/vnd.arcanum.package+zip"
     fun preferences(context: Context) = context.getSharedPreferences("arcanum-transfers", Context.MODE_PRIVATE)
-    fun manifest(records: JSONArray, token: String, progress: (TransferProgress) -> Unit = {}): JSONObject {
+    fun manifest(records: JSONArray, token: String, progress: (TransferProgress) -> Unit = {}, images: Map<Int, WobLibrary.WobImage> = emptyMap()): JSONObject {
         val items = JSONArray()
         val relationships = JSONArray()
         for (i in 0 until records.length()) {
@@ -32,13 +32,37 @@ object ArcanumSharing {
             val record = records.getJSONObject(i)
             val tags = (record.getString("source_tags") + "," + record.getString("my_tags")).split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
             val body = record.getString("transcript") + "\n\nSource note: " + record.optString("source_note")
+            val wobId = record.getInt("id")
+            val photo = images[wobId]
+            val assetPath = "assets/wob-$wobId.jpg"
+            val imageAsset = if (photo == null) JSONArray() else JSONArray().put(
+                JSONObject().put("id", "wob:$wobId:image")
+                    .put("path", assetPath)
+                    .put("mimeType", "image/jpeg")
+                    .put("name", "WoB #$wobId image.jpg")
+            )
             items.put(JSONObject().put("sourceId", "wob:" + record.getInt("id"))
                 .put("itemId", "wob:" + record.getInt("id"))
                 .put("appearance", JSONObject().put("background", "#cfe8ff"))
                 .put("title", "WoB #${record.getInt("id")} · ${record.getString("event")}")
                 .put("body", body).put("tags", JSONArray(tags))
                 .put("sourceUrl", record.optString("original_url").ifBlank { "https://wob.coppermind.net/entry/${record.getInt("id")}/" })
-                .put("metadata", record).put("assets", JSONArray()))
+                .put("metadata", record).put("assets", imageAsset))
+            if (photo != null) {
+                val sourceId = "wob:$wobId"
+                val photoId = "$sourceId:attached-image"
+                items.put(JSONObject()
+                    .put("sourceId", photoId).put("itemId", photoId)
+                    .put("title", "Attached image · WoB #$wobId")
+                    .put("body", "").put("tags", JSONArray(tags))
+                    .put("sourceUrl", record.optString("original_url").ifBlank { "https://wob.coppermind.net/entry/$wobId/" })
+                    .put("metadata", JSONObject().put("wobId", wobId).put("role", "attached-image"))
+                    .put("appearance", JSONObject().put("background", "#ffffff"))
+                    .put("assets", imageAsset))
+                relationships.put(JSONObject().put("id", "$sourceId:attached-image-link")
+                    .put("from", sourceId).put("to", photoId)
+                    .put("label", "Attached image").put("moveTogether", true))
+            }
             if (record.getString("my_notes").isNotBlank()) {
                 val sourceId = "wob:" + record.getInt("id")
                 val noteId = "$sourceId:personal-note"
@@ -53,14 +77,35 @@ object ArcanumSharing {
         }
         return JSONObject().put("format", "arcanum-package").put("version", 1).put("packageId", token).put("origin", "com.cosmerearchives.wobtracker").put("items", items).put("relationships", relationships)
     }
-    fun write(records: JSONArray, token: String, output: java.io.OutputStream, progress: (TransferProgress) -> Unit = {}) {
+    fun write(records: JSONArray, token: String, output: java.io.OutputStream, progress: (TransferProgress) -> Unit = {}, library: WobLibrary? = null) {
         require(records.length() in 1..1000) { "Mark 1–1000 entries for each transfer." }
-        val manifest = manifest(records, token, progress)
+        val images = mutableMapOf<Int, WobLibrary.WobImage>()
+        if (library != null) {
+            for (i in 0 until records.length()) {
+                val id = records.getJSONObject(i).getInt("id")
+                library.imageFor(id)?.let { images[id] = it }
+            }
+        }
+        val manifest = manifest(records, token, progress, images)
         require(manifest.getJSONArray("items").length() <= 1000) { "A package supports up to 1000 Stickies, including personal notes. Export fewer WoBs." }
         progress(TransferProgress("Serializing package manifest"))
         val bytes = manifest.toString().toByteArray(Charsets.UTF_8)
         require(bytes.size <= 4*1024*1024) { "Transfer text exceeds 4 MiB. Export fewer entries." }
-        ZipOutputStream(output).use { zip -> zip.putNextEntry(ZipEntry("manifest.json")); for (at in bytes.indices step 65536) { val count = minOf(65536, bytes.size-at); progress(TransferProgress("Compressing package", at.toLong(), bytes.size.toLong(), "bytes")); zip.write(bytes, at, count) }; zip.closeEntry() }
+        ZipOutputStream(output).use { zip ->
+            zip.putNextEntry(ZipEntry("manifest.json"))
+            for (at in bytes.indices step 65536) {
+                val count = minOf(65536, bytes.size-at)
+                progress(TransferProgress("Compressing package", at.toLong(), bytes.size.toLong(), "bytes"))
+                zip.write(bytes, at, count)
+            }
+            zip.closeEntry()
+            for ((id, image) in images) {
+                require(image.mimeType == "image/jpeg" && image.bytes.size in 1..2_000_000) { "Invalid image for WoB #$id" }
+                zip.putNextEntry(ZipEntry("assets/wob-$id.jpg"))
+                zip.write(image.bytes)
+                zip.closeEntry()
+            }
+        }
     }
     fun prepare(context: Context, library: WobLibrary, progress: (TransferProgress) -> Unit = {}): Intent {
         progress(TransferProgress("Checking Archives receiver"))
@@ -77,7 +122,7 @@ object ArcanumSharing {
         // Expire only old transfer cache files, never library data or backup files.
         dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 7L*86400000 }?.forEach { it.delete() }
         val file = File(dir, "$token.arcanum")
-        write(records, token, file.outputStream(), progress)
+        write(records, token, file.outputStream(), progress, library)
         progress(TransferProgress("Verifying package"))
         java.util.zip.ZipFile(file).use { zip -> require(zip.getEntry("manifest.json") != null) }
         progress(TransferProgress("Saving pending transfer receipt"))
