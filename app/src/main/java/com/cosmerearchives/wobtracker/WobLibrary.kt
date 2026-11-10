@@ -150,6 +150,34 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         writableDatabase.insertWithOnConflict("entries", null, values, SQLiteDatabase.CONFLICT_IGNORE)
     }
 
+    /**
+     * Import one fetched page as a SQLite transaction. A pause/error rolls back
+     * the whole page, while existing IDs remain untouched.
+     */
+    fun importPage(entries: List<SavedWob>, cancelled: () -> Boolean): Pair<Int, Int> {
+        val db = writableDatabase
+        var imported = 0
+        var duplicates = 0
+        db.beginTransaction()
+        try {
+            for (entry in entries) {
+                if (cancelled()) throw java.io.InterruptedIOException("Import paused")
+                if (hasEntry(entry.id)) {
+                    duplicates++
+                } else {
+                    saveSource(entry)
+                    require(hasEntry(entry.id)) { "Failed to import WoB #${entry.id}" }
+                    imported++
+                }
+            }
+            if (cancelled()) throw java.io.InterruptedIOException("Import paused")
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return imported to duplicates
+    }
+
     data class Highlight(val id: Long, val start: Int, val end: Int, val quote: String)
 
     fun highlights(entryId: Int): List<Highlight> {
