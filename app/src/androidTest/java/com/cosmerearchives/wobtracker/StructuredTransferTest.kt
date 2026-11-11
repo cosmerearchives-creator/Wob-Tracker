@@ -49,6 +49,25 @@ import java.io.File
   TrackerOperation.finish("Failed","Cancelled synthetic operation");assertEquals("Cancelled",TrackerOperation.state.value.state)
   library.close()
  }
+ @Test fun classificationsAreSavedAndExportedAsRequested() {
+  val context=InstrumentationRegistry.getInstrumentation().targetContext
+  val library=WobLibrary(context)
+  val id=989906
+  library.saveSource(SavedWob(id,"Classification test","2026-11-11","Transcript","source","",""))
+  assertFalse(library.completeReview(id,"","",true,false,false))
+  assertTrue(library.completeReview(id,"","",true,true,true,false,true))
+  val record=LibraryTransfer.recordsForIds(library,setOf(id)).getJSONObject(0)
+  assertEquals(1,record.getInt("cosmere"))
+  assertEquals(1,record.getInt("extended_works"))
+  assertEquals(1,record.getInt("writing_excuses"))
+  val manifest=ArcanumSharing.manifest(org.json.JSONArray().put(record),"class-test")
+  val exported=manifest.getJSONArray("items").getJSONObject(0).getJSONArray("tags")
+  val tags=(0 until exported.length()).map{exported.getString(it)}
+  assertTrue(tags.contains("Extended Works"))
+  assertTrue(tags.contains("Writing Excuses"))
+  assertFalse(tags.contains("Cosmere"))
+  library.close()
+ }
  @Test fun imageAssetHasOneDescriptorAndOneZipEntry() {
   val context=InstrumentationRegistry.getInstrumentation().targetContext
   val library=WobLibrary(context)
