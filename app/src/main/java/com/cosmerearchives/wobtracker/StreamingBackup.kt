@@ -16,8 +16,8 @@ import java.util.zip.ZipOutputStream
  * SHA-256 covers the exact uncompressed records.ndjson bytes.
  */
 object StreamingBackup {
-    private val columns = arrayOf("id","event","date","transcript","source_tags","my_tags","my_notes","needs_review","needs_export","cosmere","extended_works","event_id","entry_date","modified_date","original_url","archived","junk","source_note")
-    private val numbers = setOf("id","needs_review","needs_export","cosmere","extended_works","event_id","archived","junk")
+    private val columns = arrayOf("id","event","date","transcript","source_tags","my_tags","my_notes","needs_review","needs_export","cosmere","extended_works","event_id","entry_date","modified_date","original_url","archived","junk","source_note","writing_excuses")
+    private val numbers = setOf("id","needs_review","needs_export","cosmere","extended_works","event_id","archived","junk","writing_excuses")
     private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
 
     private fun record(db: SQLiteDatabase, c: android.database.Cursor): JSONObject {
