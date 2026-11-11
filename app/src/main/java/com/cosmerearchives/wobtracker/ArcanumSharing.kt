@@ -63,7 +63,11 @@ object ArcanumSharing {
             val imageAsset = if (photo == null) JSONArray() else JSONArray().put(
                 JSONObject().put("id", "wob:$wobId:image")
                     .put("path", assetPath)
-                    .put("mimeType", "image/jpeg")
+                    .put("kind", "image")
+                    .put("mime", photo!!.mimeType)
+                    .put("size", photo.bytes.size)
+                    .put("sha256", MessageDigest.getInstance("SHA-256").digest(photo.bytes)
+                        .joinToString("") { "%02x".format(it) })
                     .put("name", "WoB #$wobId image.jpg")
             )
             items.put(JSONObject().put("sourceId", "wob:" + record.getInt("id"))
@@ -122,6 +126,10 @@ object ArcanumSharing {
             val assets = manifestItems.getJSONObject(i).optJSONArray("assets") ?: JSONArray()
             for (j in 0 until assets.length()) {
                 val asset = assets.getJSONObject(j)
+                require(asset.getString("kind") == "image") { "Invalid asset kind" }
+                require(asset.getString("mime") == "image/jpeg") { "Invalid image MIME" }
+                require(asset.getInt("size") in 1..2_000_000) { "Invalid asset byte size" }
+                require(Regex("[a-f0-9]{64}").matches(asset.getString("sha256"))) { "Invalid asset digest" }
                 require(seenAssetIds.add(asset.getString("id"))) { "Duplicate asset ID in package" }
                 require(seenAssetPaths.add(asset.getString("path"))) { "Duplicate asset path in package" }
             }
@@ -176,7 +184,11 @@ object ArcanumSharing {
                     val path = descriptor.getString("path")
                     require(assets.add(path)) { "Duplicate asset descriptor: $path" }
                     val entry = zip.getEntry(path) ?: error("Missing image file: $path")
-                    require(entry.size in 1..2_000_000) { "Invalid image size: $path" }
+                    val content = zip.getInputStream(entry).use { input -> input.readBytes() }
+                    require(content.size == descriptor.getInt("size") && content.size in 1..2_000_000) { "Invalid image size: $path" }
+                    val checksum = MessageDigest.getInstance("SHA-256").digest(content)
+                        .joinToString("") { "%02x".format(it) }
+                    require(checksum == descriptor.getString("sha256")) { "Image checksum mismatch: $path" }
                 }
             }
             require(zip.entries().asSequence().filter { it.name.startsWith("assets/") }.count() == assets.size) {
