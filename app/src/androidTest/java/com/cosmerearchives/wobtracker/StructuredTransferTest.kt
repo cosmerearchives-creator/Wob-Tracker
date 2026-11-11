@@ -65,6 +65,13 @@ import java.io.File
    for(j in 0 until assets.length())paths.add(assets.getJSONObject(j).getString("path"))
   }
   assertEquals(listOf("assets/wob-$id.jpg"),paths)
+  val descriptor=(0 until items.length()).asSequence()
+   .flatMap{ i -> val a=items.getJSONObject(i).getJSONArray("assets");(0 until a.length()).asSequence().map{a.getJSONObject(it)} }
+   .first()
+  assertEquals("image",descriptor.getString("kind"))
+  assertEquals("image/jpeg",descriptor.getString("mime"))
+  assertEquals(image.bytes.size,descriptor.getInt("size"))
+  assertEquals(java.security.MessageDigest.getInstance("SHA-256").digest(image.bytes).joinToString(""){"%02x".format(it)},descriptor.getString("sha256"))
   val output=ByteArrayOutputStream()
   ArcanumSharing.write(rows,"image-test",output,library=library)
   java.util.zip.ZipInputStream(ByteArrayInputStream(output.toByteArray())).use{zip->
