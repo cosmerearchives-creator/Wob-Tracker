@@ -40,6 +40,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
     var notes by remember(current?.id, localRefresh) { mutableStateOf(current?.myNotes.orEmpty()) }
     var cosmere by remember(current?.id, localRefresh) { mutableStateOf(current?.cosmere ?: false) }
     var extended by remember(current?.id, localRefresh) { mutableStateOf(current?.extendedWorks ?: false) }
+    var writingExcuses by remember(current?.id, localRefresh) { mutableStateOf(current?.writingExcuses ?: false) }
     var export by remember(current?.id, localRefresh) { mutableStateOf(current?.needsExport ?: false) }
     var junk by remember(current?.id, localRefresh) { mutableStateOf(current?.junk ?: false) }
     var message by remember { mutableStateOf("") }
@@ -134,6 +135,11 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                 Checkbox(checked = extended, onCheckedChange = { extended = it; dirty = true; message = "" })
                 Text("Extended Works", color = ReviewInk)
             }
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Checkbox(checked = writingExcuses, onCheckedChange = { writingExcuses = it; dirty = true; message = "" })
+                Text("Writing Excuses", color = ReviewInk)
+            }
+            if (!cosmere && !extended && !writingExcuses) Text("Select at least one work classification to save.", color = Color(0xFFBC3E42), style = MaterialTheme.typography.bodySmall)
             HorizontalDivider(color = ReviewDivider, thickness = 1.dp)
             Text("Workflow", color = ReviewPlum, fontWeight = FontWeight.SemiBold)
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -147,9 +153,9 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                 }
             }
             if (!export && !junk) Text("Select Needs export or Junk to save; you can always skip.", color = Color(0xFFBC3E42), style = MaterialTheme.typography.bodySmall)
-            Button(enabled = export || junk, onClick = {
+            Button(enabled = (export || junk) && (cosmere || extended || writingExcuses), onClick = {
                 try {
-                    if (library.completeReview(current.id, tags, notes, export, cosmere, extended, junk)) {
+                    if (library.completeReview(current.id, tags, notes, export, cosmere, extended, junk, writingExcuses)) {
                         passedIds = passedIds + current.id
                         message = if (junk) "✓ Moved to Junk." else "✓ Reviewed and saved."
                         localRefresh++
@@ -162,7 +168,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
             }
             OutlinedButton(enabled = export || junk, onClick = {
                 try {
-                    if (library.saveReviewDraft(current.id, tags, notes, export, cosmere, extended, junk)) {
+                    if (library.saveReviewDraft(current.id, tags, notes, export, cosmere, extended, junk, writingExcuses)) {
                         passedIds = passedIds + current.id
                         message = if (junk) "✓ Moved to Junk." else "✓ Draft saved. Entry remains in the review queue."
                         localRefresh++
@@ -178,7 +184,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                 onNext()
             }) { Text("Skip without saving") }
             if (message.isNotBlank()) Text(message, color = if (message.startsWith("✓")) Color(0xFF386D52) else Color(0xFFBC3E42))
-            Text("Choose Needs export or Junk to save an entry, or skip without making a selection. Mark reviewed completes the entry; Junk goes to its own library section. Save & next keeps Needs export entries pending; Skip discards all unsaved changes and leaves the entry pending.", style = MaterialTheme.typography.bodySmall, color = ReviewInk)
+            Text("Choose at least one work classification and either Needs export or Junk to save an entry. Skip requires neither. Mark reviewed completes the entry; Junk goes to its own library section. Save & next keeps Needs export entries pending; Skip discards all unsaved changes and leaves the entry pending.", style = MaterialTheme.typography.bodySmall, color = ReviewInk)
         }
     }
 }
