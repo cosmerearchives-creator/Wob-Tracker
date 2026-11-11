@@ -42,6 +42,37 @@ class ArcanumSharingTest {
         library.close()
     }
 
+    @Test fun cancelPendingShareKeepsAllQueuedDataAndInvalidatesOldAcknowledgment() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val library = WobLibrary(context)
+        val id = 989903
+        library.saveSource(SavedWob(id, "Cancelled share test", "2026-11-10", "Source transcript", "Cosmere", "", ""))
+        library.savePersonal(id, "Tag", "Important note")
+        library.saveFlags(id, true, true)
+        library.addHighlight(id, 0, 6, "Source")
+        val receiptToken = java.util.UUID.randomUUID().toString()
+        val receipt = File(context.filesDir, "arcanum-$receiptToken.json")
+        receipt.writeText(LibraryTransfer.recordsForIds(library, setOf(id)).toString())
+        val prefs = ArcanumSharing.preferences(context)
+        prefs.edit().putBoolean("pending", true).putString("state", "Waiting").commit()
+        ArcanumSharing.cancelPendingShare(context)
+        assertFalse(receipt.exists())
+        assertFalse(prefs.getBoolean("pending", true))
+        val oldCallback = PendingIntent.getBroadcast(
+            context, 22, Intent(context, ArcanumSaveReceiver::class.java)
+                .setData(Uri.parse("arcanum-save:$receiptToken")),
+            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+        )
+        oldCallback.send(context, Activity.RESULT_OK, null)
+        Thread.sleep(400)
+        val stored = library.entries(archiveView = "All").first { it.id == id }
+        assertFalse(stored.archived)
+        assertTrue(stored.needsExport)
+        assertEquals("Important note", stored.myNotes)
+        assertEquals(1, library.highlights(id).size)
+        library.close()
+    }
+
     @Test fun acknowledgmentKeepsEditsAndReviewDataAndIgnoresCanceledTransfers() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val library = WobLibrary(context)
