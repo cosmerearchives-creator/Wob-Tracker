@@ -143,6 +143,9 @@ class MainActivity : ComponentActivity() {
                                             Button(onClick = { updates.installLatest() }) { Text("Install update") }
                                         }
                                         OutlinedButton(onClick = { updates.check() }) { Text("Check for updates") }
+                                        TextButton(onClick = {
+                                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(UpdateManager.RELEASES_PAGE)))
+                                        }) { Text("Open GitHub Releases") }
                                     }
                                 }
                                 Surface(color = Color.White, shape = RoundedCornerShape(22.dp)) {
