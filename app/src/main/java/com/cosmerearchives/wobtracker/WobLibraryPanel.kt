@@ -57,7 +57,7 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
         }
         OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("Search offline library") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-            listOf("All works", "Cosmere", "Extended Works").forEach { category ->
+            listOf("All works", "Cosmere", "Extended Works", "Writing Excuses").forEach { category ->
                 FilterChip(selected = categoryFilter == category, onClick = { categoryFilter = category }, label = { Text(category) })
             }
         }
@@ -75,8 +75,8 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                     Text("WoB #${item.id} · ${item.event}", color = LibraryPlum, fontWeight = FontWeight.SemiBold)
                     if (item.date.isNotBlank()) Text(item.date, style = MaterialTheme.typography.labelSmall)
                     if (item.myTags.isNotBlank()) Text("My tags: ${item.myTags}", style = MaterialTheme.typography.bodySmall)
-                    if (item.cosmere || item.extendedWorks) Text(
-                        listOfNotNull(if (item.cosmere) "Cosmere" else null, if (item.extendedWorks) "Extended Works" else null).joinToString(" · "),
+                    if (item.cosmere || item.extendedWorks || item.writingExcuses) Text(
+                        listOfNotNull(if (item.cosmere) "Cosmere" else null, if (item.extendedWorks) "Extended Works" else null, if (item.writingExcuses) "Writing Excuses" else null).joinToString(" · "),
                         color = LibraryPlum, style = MaterialTheme.typography.labelMedium
                     )
                     if (item.needsReview || item.needsExport || item.junk) Text(
@@ -110,8 +110,8 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             Checkbox(checked = item.cosmere, onCheckedChange = { checked ->
                                 try {
-                                    saveSucceeded = library.saveCategories(item.id, checked, item.extendedWorks)
-                                    saveMessage = if (saveSucceeded) "✓ Work classification saved." else "Could not save classification."
+                                    saveSucceeded = library.saveCategories(item.id, checked, item.extendedWorks, item.writingExcuses)
+                                    saveMessage = if (saveSucceeded) "✓ Work classification saved." else "Select at least one work classification."
                                     if (saveSucceeded) refresh++
                                 } catch (e: Exception) {
                                     saveSucceeded = false
@@ -123,7 +123,7 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             Checkbox(checked = item.extendedWorks, onCheckedChange = { checked ->
                                 try {
-                                    saveSucceeded = library.saveCategories(item.id, item.cosmere, checked)
+                                    saveSucceeded = library.saveCategories(item.id, item.cosmere, checked, item.writingExcuses)
                                     saveMessage = if (saveSucceeded) "✓ Work classification saved." else "Could not save classification."
                                     if (saveSucceeded) refresh++
                                 } catch (e: Exception) {
@@ -132,6 +132,19 @@ fun WobLibraryPanel(library: WobLibrary, libraryRevision: Int = 0) {
                                 }
                             })
                             Text("Extended Works", color = LibraryInk)
+                        }
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(checked = item.writingExcuses, onCheckedChange = { checked ->
+                                try {
+                                    saveSucceeded = library.saveCategories(item.id, item.cosmere, item.extendedWorks, checked)
+                                    saveMessage = if (saveSucceeded) "✓ Work classification saved." else "Select at least one work classification."
+                                    if (saveSucceeded) refresh++
+                                } catch (e: Exception) {
+                                    saveSucceeded = false
+                                    saveMessage = "Could not save classification."
+                                }
+                            })
+                            Text("Writing Excuses", color = LibraryInk)
                         }
                         Text("My workflow", color = LibraryPlum, fontWeight = FontWeight.SemiBold)
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
