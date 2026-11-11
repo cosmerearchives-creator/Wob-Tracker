@@ -8,12 +8,12 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = true, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false, val eventId: Int = 0, val entryDate: String = "", val modifiedDate: String = "", val originalUrl: String = "", val archived: Boolean = false, val junk: Boolean = false, val sourceNote: String = "")
+data class SavedWob(val id: Int, val event: String, val date: String, val transcript: String, val sourceTags: String, val myTags: String, val myNotes: String, val needsReview: Boolean = true, val needsExport: Boolean = false, val cosmere: Boolean = false, val extendedWorks: Boolean = false, val eventId: Int = 0, val entryDate: String = "", val modifiedDate: String = "", val originalUrl: String = "", val archived: Boolean = false, val junk: Boolean = false, val sourceNote: String = "", val writingExcuses: Boolean = false)
 
-class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 9) {
+class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db", null, 10) {
     val backupCacheDir: java.io.File = context.cacheDir
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 1, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0, event_id INTEGER NOT NULL DEFAULT 0, entry_date TEXT NOT NULL DEFAULT '', modified_date TEXT NOT NULL DEFAULT '', original_url TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0, junk INTEGER NOT NULL DEFAULT 0, source_note TEXT NOT NULL DEFAULT '')")
+        db.execSQL("CREATE TABLE entries (id INTEGER PRIMARY KEY, event TEXT NOT NULL, date TEXT NOT NULL, transcript TEXT NOT NULL, source_tags TEXT NOT NULL, my_tags TEXT NOT NULL DEFAULT '', my_notes TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 1, needs_export INTEGER NOT NULL DEFAULT 0, cosmere INTEGER NOT NULL DEFAULT 0, extended_works INTEGER NOT NULL DEFAULT 0, event_id INTEGER NOT NULL DEFAULT 0, entry_date TEXT NOT NULL DEFAULT '', modified_date TEXT NOT NULL DEFAULT '', original_url TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0, junk INTEGER NOT NULL DEFAULT 0, source_note TEXT NOT NULL DEFAULT '', writing_excuses INTEGER NOT NULL DEFAULT 0)")
         db.execSQL("CREATE TABLE wob_images (entry_id INTEGER PRIMARY KEY, mime_type TEXT NOT NULL, image_data BLOB NOT NULL, FOREIGN KEY(entry_id) REFERENCES entries(id))")
         db.execSQL("CREATE TABLE highlights (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, quote TEXT NOT NULL, UNIQUE(entry_id,start_offset,end_offset))")
     }
@@ -39,6 +39,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         if (oldVersion < 7) db.execSQL("ALTER TABLE entries ADD COLUMN junk INTEGER NOT NULL DEFAULT 0")
         if (oldVersion < 8) db.execSQL("ALTER TABLE entries ADD COLUMN source_note TEXT NOT NULL DEFAULT ''")
         if (oldVersion < 9) db.execSQL("CREATE TABLE IF NOT EXISTS wob_images (entry_id INTEGER PRIMARY KEY, mime_type TEXT NOT NULL, image_data BLOB NOT NULL, FOREIGN KEY(entry_id) REFERENCES entries(id))")
+        if (oldVersion < 10) db.execSQL("ALTER TABLE entries ADD COLUMN writing_excuses INTEGER NOT NULL DEFAULT 0")
         db.execSQL("CREATE TABLE IF NOT EXISTS highlights (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, quote TEXT NOT NULL, UNIQUE(entry_id,start_offset,end_offset))")
     }
 
@@ -54,6 +55,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         val categoryClause = when (category) {
             "Cosmere" -> " AND cosmere=1"
             "Extended Works" -> " AND extended_works=1"
+            "Writing Excuses" -> " AND writing_excuses=1"
             else -> ""
         }
         val archiveClause = when (archiveView) {
@@ -63,11 +65,11 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
             else -> " AND archived=0 AND junk=0"
         }
         readableDatabase.rawQuery(
-            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url,archived,junk,source_note FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$extra$categoryClause$archiveClause ORDER BY id DESC",
+            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url,archived,junk,source_note,writing_excuses FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$extra$categoryClause$archiveClause ORDER BY id DESC",
             arrayOf(filter, filter, filter, filter)
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                result.add(SavedWob(cursor.getInt(0),cursor.getString(1),cursor.getString(2),cursor.getString(3),cursor.getString(4),cursor.getString(5),cursor.getString(6),cursor.getInt(7) != 0,cursor.getInt(8) != 0,cursor.getInt(9) != 0,cursor.getInt(10) != 0,cursor.getInt(11),cursor.getString(12),cursor.getString(13),cursor.getString(14),cursor.getInt(15) != 0,cursor.getInt(16) != 0,cursor.getString(17)))
+                result.add(SavedWob(cursor.getInt(0),cursor.getString(1),cursor.getString(2),cursor.getString(3),cursor.getString(4),cursor.getString(5),cursor.getString(6),cursor.getInt(7) != 0,cursor.getInt(8) != 0,cursor.getInt(9) != 0,cursor.getInt(10) != 0,cursor.getInt(11),cursor.getString(12),cursor.getString(13),cursor.getString(14),cursor.getInt(15) != 0,cursor.getInt(16) != 0,cursor.getString(17),cursor.getInt(18) != 0))
             }
         }
         return result
@@ -79,6 +81,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         val categorySql = when (category) {
             "Cosmere" -> " AND cosmere=1"
             "Extended Works" -> " AND extended_works=1"
+            "Writing Excuses" -> " AND writing_excuses=1"
             else -> ""
         }
         val sectionSql = when (section) {
@@ -99,6 +102,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         val categorySql = when (category) {
             "Cosmere" -> " AND cosmere=1"
             "Extended Works" -> " AND extended_works=1"
+            "Writing Excuses" -> " AND writing_excuses=1"
             else -> ""
         }
         val sectionSql = when (section) {
@@ -111,11 +115,11 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         val offset = (page.coerceAtLeast(0).toLong() * boundedSize).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         val result = mutableListOf<SavedWob>()
         readableDatabase.rawQuery(
-            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url,archived,junk,source_note FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$categorySql$sectionSql ORDER BY id DESC LIMIT ? OFFSET ?",
+            "SELECT id,event,date,transcript,source_tags,my_tags,my_notes,needs_review,needs_export,cosmere,extended_works,event_id,entry_date,modified_date,original_url,archived,junk,source_note,writing_excuses FROM entries WHERE (event LIKE ? OR transcript LIKE ? OR my_tags LIKE ? OR my_notes LIKE ?)$categorySql$sectionSql ORDER BY id DESC LIMIT ? OFFSET ?",
             arrayOf(filter, filter, filter, filter, boundedSize.toString(), offset.toString())
         ).use { c ->
             while (c.moveToNext()) {
-                result.add(SavedWob(c.getInt(0),c.getString(1),c.getString(2),c.getString(3),c.getString(4),c.getString(5),c.getString(6),c.getInt(7)!=0,c.getInt(8)!=0,c.getInt(9)!=0,c.getInt(10)!=0,c.getInt(11),c.getString(12),c.getString(13),c.getString(14),c.getInt(15)!=0,c.getInt(16)!=0,c.getString(17)))
+                result.add(SavedWob(c.getInt(0),c.getString(1),c.getString(2),c.getString(3),c.getString(4),c.getString(5),c.getString(6),c.getInt(7)!=0,c.getInt(8)!=0,c.getInt(9)!=0,c.getInt(10)!=0,c.getInt(11),c.getString(12),c.getString(13),c.getString(14),c.getInt(15)!=0,c.getInt(16)!=0,c.getString(17),c.getInt(18) != 0))
             }
         }
         return result
@@ -282,10 +286,12 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
 
-    fun saveCategories(id: Int, cosmere: Boolean, extendedWorks: Boolean): Boolean {
+    fun saveCategories(id: Int, cosmere: Boolean, extendedWorks: Boolean, writingExcuses: Boolean): Boolean {
+        if (!cosmere && !extendedWorks && !writingExcuses) return false
         val values = ContentValues().apply {
             put("cosmere", if (cosmere) 1 else 0)
             put("extended_works", if (extendedWorks) 1 else 0)
+            put("writing_excuses", if (writingExcuses) 1 else 0)
         }
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
@@ -305,7 +311,8 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
     }
 
     /** Atomically save annotations and finish review, so a failed save never advances the queue. */
-    fun completeReview(id: Int, tags: String, notes: String, needsExport: Boolean, cosmere: Boolean, extendedWorks: Boolean, junk: Boolean = false): Boolean {
+    fun completeReview(id: Int, tags: String, notes: String, needsExport: Boolean, cosmere: Boolean, extendedWorks: Boolean, junk: Boolean = false, writingExcuses: Boolean = false): Boolean {
+        if (!cosmere && !extendedWorks && !writingExcuses) return false
         val values = ContentValues().apply {
             put("my_tags", tags)
             put("my_notes", notes)
@@ -314,11 +321,13 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
             put("junk", if (junk) 1 else 0)
             put("cosmere", if (cosmere) 1 else 0)
             put("extended_works", if (extendedWorks) 1 else 0)
+            put("writing_excuses", if (writingExcuses) 1 else 0)
         }
         return writableDatabase.update("entries", values, "id=? AND needs_review=1", arrayOf(id.toString())) == 1
     }
 
-    fun saveReviewDraft(id: Int, tags: String, notes: String, needsExport: Boolean, cosmere: Boolean, extendedWorks: Boolean, junk: Boolean = false): Boolean {
+    fun saveReviewDraft(id: Int, tags: String, notes: String, needsExport: Boolean, cosmere: Boolean, extendedWorks: Boolean, junk: Boolean = false, writingExcuses: Boolean = false): Boolean {
+        if (!cosmere && !extendedWorks && !writingExcuses) return false
         val values = ContentValues().apply {
             put("my_tags", tags)
             put("my_notes", notes)
@@ -327,6 +336,7 @@ class WobLibrary(context: Context) : SQLiteOpenHelper(context, "wob_library.db",
             if (junk) put("needs_review", 0)
             put("cosmere", if (cosmere) 1 else 0)
             put("extended_works", if (extendedWorks) 1 else 0)
+            put("writing_excuses", if (writingExcuses) 1 else 0)
         }
         return writableDatabase.update("entries", values, "id=?", arrayOf(id.toString())) == 1
     }
