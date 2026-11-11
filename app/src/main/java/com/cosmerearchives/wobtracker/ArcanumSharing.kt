@@ -55,7 +55,11 @@ object ArcanumSharing {
         for (i in 0 until records.length()) {
             progress(TransferProgress("Preparing Stickies and relationships", i.toLong(), records.length().toLong()))
             val record = records.getJSONObject(i)
-            val tags = (record.getString("source_tags") + "," + record.getString("my_tags")).split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+            val tags = buildList {
+                addAll((record.getString("source_tags") + "," + record.getString("my_tags")).split(','))
+                if (record.optInt("extended_works") != 0) add("Extended Works")
+                if (record.optInt("writing_excuses") != 0) add("Writing Excuses")
+            }.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase(java.util.Locale.ROOT) }
             val body = record.getString("transcript") + "\n\nSource note: " + record.optString("source_note")
             val wobId = record.getInt("id")
             val photo = images[wobId]
