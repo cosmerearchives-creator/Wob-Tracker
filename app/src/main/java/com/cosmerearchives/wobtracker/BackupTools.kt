@@ -23,6 +23,7 @@ import kotlin.concurrent.thread
  val prefs=remember{ArcanumSharing.preferences(context)}
  var transferStatus by remember{mutableStateOf(prefs.getString("status","No transfer pending.")?:"")}
  var waiting by remember{mutableStateOf(prefs.getBoolean("pending",false))}
+ var confirmCancelShare by remember { mutableStateOf(false) }
  DisposableEffect(prefs){
   val listener=android.content.SharedPreferences.OnSharedPreferenceChangeListener{_,key->if(key=="status")main.post{transferStatus=prefs.getString("status","")?:"";waiting=prefs.getBoolean("pending",false);if(!waiting){val outcome=prefs.getString("state","")?:"";if(!TrackerOperation.state.value.busy&&TrackerOperation.state.value.state=="Waiting"&&outcome in listOf("Completed","Failed"))TrackerOperation.finish(outcome,transferStatus);if(outcome=="Completed")onRestored()}}}
   prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -51,6 +52,7 @@ import kotlin.concurrent.thread
   }catch(e: Exception){finish("Failed","Backup verification failed: ${e.message}")}}
  }
  fun share(){
+  if(waiting || prefs.getBoolean("pending",false))return
   if(!TrackerOperation.begin("Preparing Archives share"))return
   thread{try{
    val intent=ArcanumSharing.prepare(context,library,::progress);progress(TransferProgress("Starting Android share"))
@@ -95,7 +97,31 @@ import kotlin.concurrent.thread
   Text("A blue WoB Sticky and a connected personal-note Sticky, when present. Only a verified Archives save can archive the source entries.")
   OutlinedButton(enabled=!busy,onClick={if(TrackerOperation.begin("Waiting for export location"))export.launch("wob-archives-transfer.arcanum")}){Text("Create Archives export file")}
   Button(enabled=!busy&&!waiting,onClick={share()}){Text("Send to Archives of Arcanum")}
-  if(waiting){LinearProgressIndicator(modifier=Modifier.fillMaxWidth());Text("Waiting for saved-import acknowledgment");TextButton(enabled=!busy,onClick={share()}){Text("Retry pending share")}}
+  if(waiting){
+   LinearProgressIndicator(modifier=Modifier.fillMaxWidth())
+   Text("Waiting for saved-import acknowledgment")
+   Text("If Archives rejected this package, cancel it before sending a newly generated one. Your WoBs remain queued.",style=MaterialTheme.typography.bodySmall)
+   OutlinedButton(enabled=!busy,onClick={confirmCancelShare=true}){Text("Cancel pending share")}
+  }
+  if(confirmCancelShare){
+   AlertDialog(
+    onDismissRequest={confirmCancelShare=false},
+    title={Text("Cancel pending share?")},
+    text={Text("This abandons the failed package and clears its saved acknowledgment receipt. No WoBs, images, tags, notes, or export flags will be deleted. You'll be able to send a brand-new package.")},
+    confirmButton={TextButton(onClick={
+     confirmCancelShare=false
+     try{
+      ArcanumSharing.cancelPendingShare(context)
+      waiting=false
+      transferStatus=prefs.getString("status","Pending transfer cancelled.")?:"Pending transfer cancelled."
+      TrackerOperation.finish("Cancelled",transferStatus)
+     }catch(e:Exception){
+      transferStatus="Could not cancel the pending transfer: ${e.message}"
+     }
+    }){Text("Cancel share")}},
+    dismissButton={TextButton(onClick={confirmCancelShare=false}){Text("Keep waiting")}}
+   )
+  }
   Text(transferStatus,style=MaterialTheme.typography.bodySmall)
  }
 }
