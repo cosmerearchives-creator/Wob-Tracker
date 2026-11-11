@@ -10,6 +10,7 @@ import android.provider.Settings
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -21,6 +22,8 @@ class UpdateManager(private val activity: Activity) {
     val state = MutableStateFlow(UpdateState())
     private val main = Handler(Looper.getMainLooper())
     private val releasesApi = "https://api.github.com/repos/cosmerearchives-creator/Wob-Tracker/releases?per_page=20"
+    private val latestApi = "https://api.github.com/repos/cosmerearchives-creator/Wob-Tracker/releases/latest"
+    companion object { const val RELEASES_PAGE = "https://github.com/cosmerearchives-creator/Wob-Tracker/releases/latest" }
 
     private val checking=java.util.concurrent.atomic.AtomicBoolean(false)
     private val downloading=java.util.concurrent.atomic.AtomicBoolean(false)
@@ -29,11 +32,19 @@ class UpdateManager(private val activity: Activity) {
         state.value = UpdateState("Checking for updates…", busy=true)
         thread {
             try {
-                val releases = JSONArray(readText(releasesApi))
+                val releases = try {
+                    JSONArray().put(JSONObject(readText(latestApi)))
+                } catch (latestError: Exception) {
+                    try { JSONArray(readText(releasesApi)) }
+                    catch (fallbackError: Exception) {
+                        fallbackError.addSuppressed(latestError)
+                        throw fallbackError
+                    }
+                }
                 var selected: Triple<List<Int>, String, String>? = null
                 for (i in 0 until releases.length()) {
                     val release = releases.getJSONObject(i)
-                    if (release.optBoolean("draft")) continue
+                    if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue
                     val tag = release.optString("tag_name").removePrefix("v")
                     val version = parseVersion(tag) ?: continue
                     val assets = release.optJSONArray("assets") ?: continue
@@ -52,7 +63,14 @@ class UpdateManager(private val activity: Activity) {
                     else UpdateState("Update available: v${available.second}", available.third)
                 }
             } catch (e: Exception) {
-                main.post { state.value = UpdateState("Couldn't check for updates. Please try again.") }
+                main.post {
+                    val cause = when (e) {
+                        is java.net.SocketTimeoutException -> "GitHub request timed out"
+                        is java.net.UnknownHostException -> "GitHub hostname could not be resolved"
+                        else -> (e.message ?: e.javaClass.simpleName).take(120)
+                    }
+                    state.value = UpdateState("Couldn't check GitHub releases: $cause. Open GitHub Releases to update manually.")
+                }
             } finally { checking.set(false) }
         }
     }
@@ -70,7 +88,10 @@ class UpdateManager(private val activity: Activity) {
                 conn.readTimeout = 30000
                 conn.instanceFollowRedirects = true
                 try {
-                    if (conn.responseCode !in 200..299) error("HTTP ${conn.responseCode}")
+                    if (conn.responseCode !in 200..299) {
+                val status = conn.responseCode
+                error("GitHub HTTP $status" + if (status == 403 || status == 429) " (possibly API rate limited)" else "")
+            }
                     val total=conn.contentLengthLong
                     conn.inputStream.use { source -> apk.outputStream().use { output ->
                         val buffer=ByteArray(65536);var done=0L;var last=0L
