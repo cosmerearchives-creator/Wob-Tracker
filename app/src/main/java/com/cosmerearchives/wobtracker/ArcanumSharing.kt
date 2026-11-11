@@ -24,6 +24,31 @@ object ArcanumSharing {
     const val TARGET = "com.cosmerearchives.silverlight"
     const val MIME = "application/vnd.arcanum.package+zip"
     fun preferences(context: Context) = context.getSharedPreferences("arcanum-transfers", Context.MODE_PRIVATE)
+    /**
+     * Abandon all old share receipts and transient packages without touching the
+     * database, queued WoBs, notes, highlights, or saved attachments. An obsolete
+     * Archives acknowledgment must find no receipt and therefore cannot archive.
+     */
+    fun cancelPendingShare(context: Context): Int {
+        val receipts = context.filesDir.listFiles()?.filter {
+            it.isFile && Regex("arcanum-[a-f0-9-]{36}\\.json").matches(it.name)
+        }.orEmpty()
+        for (receipt in receipts) {
+            require(receipt.delete() || !receipt.exists()) { "Could not invalidate an old transfer receipt" }
+        }
+        // Removing transient ZIPs makes any future send regenerate its manifest
+        // and image assets from the current WoB library.
+        val cache = File(context.cacheDir, "arcanum")
+        cache.listFiles()?.filter { it.isFile && it.extension == "arcanum" }?.forEach { it.delete() }
+        val saved = preferences(context).edit()
+            .putBoolean("pending", false)
+            .putString("state", "Cancelled")
+            .putString("status", "Pending transfer cancelled. All WoBs remain queued. Send again to create a new package.")
+            .commit()
+        require(saved) { "Could not save cancelled transfer state" }
+        return receipts.size
+    }
+
     fun manifest(records: JSONArray, token: String, progress: (TransferProgress) -> Unit = {}, images: Map<Int, WobLibrary.WobImage> = emptyMap()): JSONObject {
         val items = JSONArray()
         val relationships = JSONArray()
