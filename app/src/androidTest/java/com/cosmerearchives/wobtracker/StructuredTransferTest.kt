@@ -49,4 +49,33 @@ import java.io.File
   TrackerOperation.finish("Failed","Cancelled synthetic operation");assertEquals("Cancelled",TrackerOperation.state.value.state)
   library.close()
  }
+ @Test fun imageAssetHasOneDescriptorAndOneZipEntry() {
+  val context=InstrumentationRegistry.getInstrumentation().targetContext
+  val library=WobLibrary(context)
+  val id=989901
+  library.saveSource(SavedWob(id,"Image transfer test","2026-11-10","Test transcript","cosmere","",""))
+  library.saveImage(id,"image/jpeg",byteArrayOf(0xFF.toByte(),0xD8.toByte(),0xFF.toByte(),0xD9.toByte()))
+  val rows=LibraryTransfer.recordsForIds(library,setOf(id))
+  val image=library.imageFor(id)!!
+  val manifest=ArcanumSharing.manifest(rows,"image-test",images=mapOf(id to image))
+  val items=manifest.getJSONArray("items")
+  val paths=mutableListOf<String>()
+  for(i in 0 until items.length()){
+   val assets=items.getJSONObject(i).getJSONArray("assets")
+   for(j in 0 until assets.length())paths.add(assets.getJSONObject(j).getString("path"))
+  }
+  assertEquals(listOf("assets/wob-$id.jpg"),paths)
+  val output=ByteArrayOutputStream()
+  ArcanumSharing.write(rows,"image-test",output,library=library)
+  java.util.zip.ZipInputStream(ByteArrayInputStream(output.toByteArray())).use{zip->
+   val names=mutableListOf<String>()
+   var entry=zip.nextEntry
+   while(entry!=null){names.add(entry.name);zip.closeEntry();entry=zip.nextEntry}
+   assertEquals(1,names.count{it=="assets/wob-$id.jpg"})
+   assertTrue(names.contains("manifest.json"))
+  }
+  library.deleteImage(id)
+  library.close()
+ }
+
 }
