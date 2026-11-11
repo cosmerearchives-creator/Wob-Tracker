@@ -47,7 +47,7 @@ object ArcanumSharing {
                 .put("title", "WoB #${record.getInt("id")} · ${record.getString("event")}")
                 .put("body", body).put("tags", JSONArray(tags))
                 .put("sourceUrl", record.optString("original_url").ifBlank { "https://wob.coppermind.net/entry/${record.getInt("id")}/" })
-                .put("metadata", record).put("assets", imageAsset))
+                .put("metadata", record).put("assets", JSONArray()))
             if (photo != null) {
                 val sourceId = "wob:$wobId"
                 val photoId = "$sourceId:attached-image"
@@ -87,6 +87,21 @@ object ArcanumSharing {
             }
         }
         val manifest = manifest(records, token, progress, images)
+        // Each package asset must have exactly one owner and one ZIP entry.
+        // The linked image sticky owns the image; the parent WoB references it
+        // through the move-together relationship instead of a second descriptor.
+        val seenAssetPaths = mutableSetOf<String>()
+        val seenAssetIds = mutableSetOf<String>()
+        val manifestItems = manifest.getJSONArray("items")
+        for (i in 0 until manifestItems.length()) {
+            val assets = manifestItems.getJSONObject(i).optJSONArray("assets") ?: JSONArray()
+            for (j in 0 until assets.length()) {
+                val asset = assets.getJSONObject(j)
+                require(seenAssetIds.add(asset.getString("id"))) { "Duplicate asset ID in package" }
+                require(seenAssetPaths.add(asset.getString("path"))) { "Duplicate asset path in package" }
+            }
+        }
+        require(seenAssetPaths.size == images.size) { "Image manifest does not match attachments" }
         require(manifest.getJSONArray("items").length() <= 1000) { "A package supports up to 1000 Stickies, including personal notes. Export fewer WoBs." }
         progress(TransferProgress("Serializing package manifest"))
         val bytes = manifest.toString().toByteArray(Charsets.UTF_8)
@@ -124,7 +139,25 @@ object ArcanumSharing {
         val file = File(dir, "$token.arcanum")
         write(records, token, file.outputStream(), progress, library)
         progress(TransferProgress("Verifying package"))
-        java.util.zip.ZipFile(file).use { zip -> require(zip.getEntry("manifest.json") != null) }
+        java.util.zip.ZipFile(file).use { zip ->
+            val metadata = zip.getEntry("manifest.json") ?: error("Missing package manifest")
+            val savedManifest = JSONObject(zip.getInputStream(metadata).bufferedReader().use { it.readText() })
+            val assets = mutableSetOf<String>()
+            val items = savedManifest.getJSONArray("items")
+            for (i in 0 until items.length()) {
+                val list = items.getJSONObject(i).optJSONArray("assets") ?: JSONArray()
+                for (j in 0 until list.length()) {
+                    val descriptor = list.getJSONObject(j)
+                    val path = descriptor.getString("path")
+                    require(assets.add(path)) { "Duplicate asset descriptor: $path" }
+                    val entry = zip.getEntry(path) ?: error("Missing image file: $path")
+                    require(entry.size in 1..2_000_000) { "Invalid image size: $path" }
+                }
+            }
+            require(zip.entries().asSequence().filter { it.name.startsWith("assets/") }.count() == assets.size) {
+                "Package asset count mismatch"
+            }
+        }
         progress(TransferProgress("Saving pending transfer receipt"))
         val pending = File(context.filesDir, "arcanum-$token.json")
         pending.outputStream().use { out -> out.write(records.toString().toByteArray()); out.flush(); out.fd.sync() }
