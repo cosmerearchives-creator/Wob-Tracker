@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
-    <queries><package android:name="com.cosmerearchives.silverlight"/></queries>
+    <queries>
+        <package android:name="com.cosmerearchives.silverlight"/>
+        <intent><action android:name="android.speech.RecognitionService"/></intent>
+    </queries>
     <application android:label="WoB Tracker" android:icon="@drawable/wob_launcher" android:roundIcon="@drawable/wob_launcher" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false" android:allowBackup="true">
         <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
