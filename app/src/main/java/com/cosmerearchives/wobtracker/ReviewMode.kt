@@ -93,6 +93,11 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
                 HandsFreeReview(
                     library = library,
                     entry = current,
+                    initialTags = tags,
+                    initialNotes = notes,
+                    initialCosmere = cosmere,
+                    initialExtended = extended,
+                    initialWritingExcuses = writingExcuses,
                     onAdvance = { outcome, saved ->
                         passedIds = passedIds + current.id
                         localRefresh++
