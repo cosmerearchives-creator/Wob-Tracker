@@ -1,6 +1,11 @@
 package com.cosmerearchives.wobtracker
 
 import android.text.Html
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -47,6 +52,15 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
     var sourceLink by remember(current?.id) { mutableStateOf(current?.originalUrl.orEmpty()) }
     var dirty by remember(current?.id, localRefresh) { mutableStateOf(false) }
     var showSourceDetails by remember(current?.id) { mutableStateOf(false) }
+    var handsFree by remember { mutableStateOf(false) }
+    val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            handsFree = true
+            message = ""
+        } else {
+            message = "Microphone access is required to enable Hands-Free Mode."
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Row(
@@ -66,6 +80,31 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
             )
         } else {
             Text("Open Tools → Browse Arcanum to load the overall archive total.", color = ReviewPlum, style = MaterialTheme.typography.bodySmall)
+        }
+        if (current != null) {
+            OutlinedButton(onClick = {
+                if (handsFree) handsFree = false
+                else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    handsFree = true
+                    message = ""
+                } else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+            }) { Text(if (handsFree) "Stop Hands-Free Mode" else "Start Hands-Free Mode") }
+            if (handsFree) {
+                HandsFreeReview(
+                    library = library,
+                    entry = current,
+                    onAdvance = { outcome, saved ->
+                        passedIds = passedIds + current.id
+                        localRefresh++
+                        message = "✓ $outcome"
+                        if (saved) onChanged()
+                        onNext()
+                    },
+                    onStop = { handsFree = false }
+                )
+            }
+        } else if (handsFree) {
+            LaunchedEffect(Unit) { handsFree = false }
         }
         if (current == null) {
             if (pending.isEmpty()) {
