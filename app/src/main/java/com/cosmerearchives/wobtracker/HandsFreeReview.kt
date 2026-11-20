@@ -64,8 +64,12 @@ internal class HandsFreeReviewSession(
             main.post {
                 if (!stopped) {
                     if (result == TextToSpeech.SUCCESS) {
-                        speakingReady = true
-                        readTranscript()
+                        if (recognizer == null) {
+                            fail("Android speech recognition is unavailable. Enable a speech recognition service to use Hands-Free Mode.")
+                        } else {
+                            speakingReady = true
+                            readTranscript()
+                        }
                     } else fail("Text-to-speech isn't available on this device.")
                 }
             }
@@ -113,7 +117,7 @@ internal class HandsFreeReviewSession(
     private fun readTranscript() {
         if (stopped || !speakingReady) return
         phase = Phase.TAGS
-        val question = "What tags would you like? Say the tags, or say none. You can also say skip or stop."
+        val question = "What tags would you like? Say tags separated by the word comma, or say none. You can also say skip or stop."
         lastQuestion = question
         say(speechChunks(entry.transcript) + question, Phase.TAGS, "Reading transcript")
     }
