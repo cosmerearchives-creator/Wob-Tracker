@@ -210,7 +210,7 @@ fun ReviewMode(library: WobLibrary, libraryRevision: Int, onChanged: () -> Unit,
             }, colors = ButtonDefaults.buttonColors(containerColor = ReviewPlum)) {
                 Text("Mark reviewed & next")
             }
-            OutlinedButton(enabled = export || junk, onClick = {
+            OutlinedButton(enabled = (export || junk) && (cosmere || extended || writingExcuses), onClick = {
                 try {
                     if (library.saveReviewDraft(current.id, tags, notes, export, cosmere, extended, junk, writingExcuses)) {
                         passedIds = passedIds + current.id
