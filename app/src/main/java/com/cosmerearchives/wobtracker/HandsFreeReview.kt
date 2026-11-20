@@ -27,6 +27,11 @@ internal class HandsFreeReviewSession(
     private val context: Context,
     private val entry: SavedWob,
     private val library: WobLibrary,
+    initialTags: String,
+    private val initialNotes: String,
+    initialCosmere: Boolean,
+    initialExtended: Boolean,
+    initialWritingExcuses: Boolean,
     private val updateStatus: (String) -> Unit,
     private val onAdvance: (String, Boolean) -> Unit,
     private val onStop: () -> Unit
@@ -40,10 +45,11 @@ internal class HandsFreeReviewSession(
     private var serial = 0
     private var speakingReady = false
     private var listening = false
-    private var tags = entry.myTags
-    private var cosmere = entry.cosmere
-    private var extended = entry.extendedWorks
-    private var writingExcuses = entry.writingExcuses
+    private val startingTags = initialTags
+    private var tags = initialTags
+    private var cosmere = initialCosmere
+    private var extended = initialExtended
+    private var writingExcuses = initialWritingExcuses
     private var junk = entry.junk
     private val tts: TextToSpeech
     private val recognizer: SpeechRecognizer?
@@ -275,7 +281,7 @@ internal class HandsFreeReviewSession(
                     "save", "confirm", "yes", "save and next", "mark reviewed" -> {
                         try {
                             if (library.completeReview(
-                                    entry.id, tags, entry.myNotes, !junk,
+                                    entry.id, tags, initialNotes, !junk,
                                     cosmere, extended, junk, writingExcuses
                                 )) {
                                 stop()
@@ -288,7 +294,7 @@ internal class HandsFreeReviewSession(
                         }
                     }
                     "change", "redo", "start over", "edit" -> {
-                        tags = entry.myTags
+                        tags = startingTags
                         readTranscript()
                     }
                     else -> ask("Say save to confirm, change to start again, skip, or stop.", Phase.CONFIRM)
@@ -325,6 +331,11 @@ internal class HandsFreeReviewSession(
 fun HandsFreeReview(
     library: WobLibrary,
     entry: SavedWob,
+    initialTags: String,
+    initialNotes: String,
+    initialCosmere: Boolean,
+    initialExtended: Boolean,
+    initialWritingExcuses: Boolean,
     onAdvance: (String, Boolean) -> Unit,
     onStop: () -> Unit
 ) {
@@ -336,6 +347,9 @@ fun HandsFreeReview(
         HandsFreeReviewSession(
             context = context,
             entry = entry, library = library,
+            initialTags = initialTags, initialNotes = initialNotes,
+            initialCosmere = initialCosmere, initialExtended = initialExtended,
+            initialWritingExcuses = initialWritingExcuses,
             updateStatus = { status = it },
             onAdvance = { message, saved -> updatedAdvance(message, saved) },
             onStop = { updatedStop() }
